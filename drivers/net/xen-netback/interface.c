@@ -269,7 +269,7 @@ struct xenvif *xenvif_alloc(struct device *parent, domid_t domid,
 	char name[IFNAMSIZ] = {};
 
 	snprintf(name, IFNAMSIZ - 1, "vif%u.%u", domid, handle);
-	dev = alloc_netdev(sizeof(struct xenvif), name, NET_NAME_UNKNOWN, ether_setup);
+	dev = alloc_netdev(sizeof(struct xenvif), name, ether_setup);
 	if (dev == NULL) {
 		pr_warn("Could not allocate netdev\n");
 		return ERR_PTR(-ENOMEM);
