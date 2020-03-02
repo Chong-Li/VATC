@@ -132,6 +132,34 @@
 
 #include "net-sysfs.h"
 
+/*VATC*/
+#include <linux/kthread.h>
+//#include <uapi/linux/sched/types.h>
+
+#define NEW
+struct net_device* NIC_dev;
+EXPORT_SYMBOL(NIC_dev);
+int BQL_flag;
+EXPORT_SYMBOL(BQL_flag);
+int DQL_flag;
+EXPORT_SYMBOL(DQL_flag);
+
+wait_queue_head_t* netbk_wq[6];
+EXPORT_SYMBOL(netbk_wq);
+wait_queue_head_t* netbk_tx_wq[6];
+EXPORT_SYMBOL(netbk_tx_wq);
+
+wait_queue_head_t net_recv_wq;
+struct task_struct *net_recv_task;
+int net_recv_flag;
+
+wait_queue_head_t tx_ring_clean_wq;
+struct task_struct *tx_ring_clean_task;
+int tx_ring_clean_flag;
+
+char NIC_name[IFNAMSIZ];
+int NIC_name_len;
+
 /* Instead of increasing this, you should create a hash table. */
 #define MAX_GRO_SKBS 8
 
@@ -1026,6 +1054,11 @@ int dev_alloc_name(struct net_device *dev, const char *name)
 	ret = __dev_alloc_name(net, name, buf);
 	if (ret >= 0)
 		strlcpy(dev->name, buf, IFNAMSIZ);
+
+	/*VATC*/
+	if (!memcmp(dev->name, NIC_name, NIC_name_len)){
+		NIC_dev = dev;
+	}
 	return ret;
 }
 EXPORT_SYMBOL(dev_alloc_name);
@@ -1134,6 +1167,12 @@ rollback:
 			       dev->name, ret);
 		}
 	}
+
+	/*VATC*/
+	if (!memcmp(dev->name, NIC_name, NIC_name_len)){
+		NIC_dev = dev;
+	}
+
 
 	return err;
 }
@@ -2792,6 +2831,20 @@ int dev_queue_xmit(struct sk_buff *skb)
 	skb_update_prio(skb);
 
 	txq = netdev_pick_tx(dev, skb);
+
+/*VATC*/
+#ifdef NEW
+		//rcu_read_lock_bh();
+		qdisc_skb_cb(skb)->pkt_len = skb->len;
+		skb=dev_hard_start_xmit(skb,dev,txq,&rc);
+		if((BQL_flag==0 ||DQL_flag==0)&&skb){
+			rcu_read_unlock_bh();
+			return 110;
+		}
+		rcu_read_unlock_bh();
+		return rc;
+#endif
+
 	q = rcu_dereference_bh(txq->qdisc);
 
 #ifdef CONFIG_NET_CLS_ACT
@@ -2874,6 +2927,23 @@ int weight_p __read_mostly = 64;            /* old backlog weight */
 static inline void ____napi_schedule(struct softnet_data *sd,
 				     struct napi_struct *napi)
 {
+	/*VATC*/
+	/*if (napi->dev != NULL){
+		if (!memcmp(napi->dev->name, NIC_name, NIC_name_len)){
+			//printk("~~~~~~~~~~~~~~~ napi_sched: %s\n",napi->dev->name);
+			//if (list_empty(&napi->kthread_list)){
+				list_add_tail(&napi->kthread_list, &sd->kthread_list);
+				//printk("~~~~ add to kthread_list\n");
+			//}
+				net_recv_flag = 1;
+				//if(!list_empty(&(net_recv_wq.task_list))){
+					wake_up(&net_recv_wq);
+				//}
+			return;
+		}
+	}*/
+	//printk("~~~!!!!!~~~VATC: napi_sched: %s\n",napi->dev->name);
+
 	list_add_tail(&napi->poll_list, &sd->poll_list);
 	__raise_softirq_irqoff(NET_RX_SOFTIRQ);
 }
@@ -3606,6 +3676,35 @@ int netif_receive_skb(struct sk_buff *skb)
 	if (skb_defer_rx_timestamp(skb))
 		return NET_RX_SUCCESS;
 
+	/*VATC*/
+	/*	struct ethhdr *eth_header=(struct ethhdr *)skb_mac_header(skb);
+		struct softnet_data *sd;
+		sd=&__get_cpu_var(softnet_data);
+		int i;
+		for(i=0;i<sd->dom_index;i++){
+			if(ether_addr_equal(eth_header->h_dest,sd->localdoms[i]))
+				break;
+		}
+		if(i<sd->dom_index){
+			if(eth_header->h_proto!=htons(ETH_P_ARP)){
+				rcu_read_lock();
+		
+				skb_reset_network_header(skb);
+				skb_reset_transport_header(skb);
+				skb_reset_mac_len(skb);
+		
+				skb->dev=sd->dev_queue[i];
+				skb_push(skb, ETH_HLEN);
+		
+				ret=dev_queue_xmit(skb);
+				printk("go dev_queue_xmit, %d\n", ret);
+				rcu_read_unlock();
+				return ret;
+			}	
+		}
+	*/
+
+
 #ifdef CONFIG_RPS
 	if (static_key_false(&rps_needed)) {
 		struct rps_dev_flow voidflow, *rflow = &voidflow;
@@ -4089,7 +4188,13 @@ void __napi_complete(struct napi_struct *n)
 	BUG_ON(!test_bit(NAPI_STATE_SCHED, &n->state));
 	BUG_ON(n->gro_list);
 
-	list_del(&n->poll_list);
+	/*VATC*/
+	//if (!memcmp(n->dev->name, NIC_name, NIC_name_len)){
+		//list_del(&n->kthread_list);
+	//} else {
+		list_del(&n->poll_list);
+	//}
+
 	smp_mb__before_clear_bit();
 	clear_bit(NAPI_STATE_SCHED, &n->state);
 }
@@ -4117,6 +4222,10 @@ void netif_napi_add(struct net_device *dev, struct napi_struct *napi,
 		    int (*poll)(struct napi_struct *, int), int weight)
 {
 	INIT_LIST_HEAD(&napi->poll_list);
+
+	/*VATC*/
+	INIT_LIST_HEAD(&napi->kthread_list);
+	
 	napi->gro_count = 0;
 	napi->gro_list = NULL;
 	napi->skb = NULL;
@@ -4152,6 +4261,75 @@ void netif_napi_del(struct napi_struct *napi)
 	napi->gro_count = 0;
 }
 EXPORT_SYMBOL(netif_napi_del);
+
+/*VATC*/
+static int net_recv_kthread(void *data){
+	printk("~~~~~~~~~%s~~~~~~~~~~~\n", __func__);		
+	struct sched_param net_recv_param={.sched_priority=97};
+	sched_setscheduler(current,SCHED_FIFO,&net_recv_param);
+	struct softnet_data *sd=data;
+	while (!kthread_should_stop()) {
+		wait_event_interruptible(net_recv_wq,
+				net_recv_flag||kthread_should_stop());
+		cond_resched();
+		if (kthread_should_stop())
+			break;
+		
+		//unsigned long time_limit = jiffies + 2;
+		void  *have;
+		int budget = netdev_budget;	
+		local_irq_disable();
+		while (!list_empty(&sd->kthread_list)) {
+			struct napi_struct *n;
+			int work, weight;			
+
+			local_irq_enable();
+			n = list_first_entry(&sd->kthread_list, struct napi_struct, kthread_list);
+			have = netpoll_poll_lock(n);
+			weight = n->weight;
+			//weight=256;
+			work = 0;
+			if (test_bit(NAPI_STATE_SCHED, &n->state)) {
+				work = n->poll(n, weight);
+			}
+			printk("in net_recv_kthread: work=%d ~~~ poll=%pF\n", work, n->poll);
+			local_irq_disable();
+	
+			if (unlikely(work == weight)) {
+				if (unlikely(napi_disable_pending(n))) {
+					local_irq_enable();
+					napi_complete(n);
+					local_irq_disable();
+					printk("napi_complete\n");
+				} else {
+					if (n->gro_list) {
+						local_irq_enable();
+						napi_gro_flush(n, HZ >= 1000);
+						printk("napi_gro_flush\n");
+						local_irq_disable();
+					}
+					list_move_tail(&n->kthread_list, &sd->kthread_list);
+				}
+			} 
+			netpoll_poll_unlock(have);
+		}
+		net_rps_action_and_irq_enable(sd);
+
+		//printk("Out of kthread_list\n");
+		net_recv_flag = 0;
+		int vif_index;
+		for(vif_index=0; vif_index<6; vif_index++){	
+			if(netbk_tx_wq[vif_index]!=NULL&&!list_empty(&(netbk_tx_wq[vif_index]->task_list))){					
+				if(BQL_flag==1&&DQL_flag==1){					
+					wake_up(netbk_tx_wq[vif_index]);
+					//printk("~~~~~wake up netbk_tx_wq[%d]\n", vif_index);
+				}
+			}				
+		}	
+		//printk("After wake up netbk_tx_wq\n");
+	}
+	return 0;
+}
 
 static void net_rx_action(struct softirq_action *h)
 {
@@ -5395,6 +5573,13 @@ int register_netdev(struct net_device *dev)
 	rtnl_lock();
 	err = register_netdevice(dev);
 	rtnl_unlock();
+
+	/*VATC*/
+	printk("VATC: Now register netdevice: %s", dev->name);
+	if (!memcmp(dev->name, NIC_name, NIC_name_len)){
+		NIC_dev = dev;
+	}
+
 	return err;
 }
 EXPORT_SYMBOL(register_netdev);
@@ -6298,6 +6483,9 @@ static int __init net_dev_init(void)
 		skb_queue_head_init(&sd->process_queue);
 		sd->completion_queue = NULL;
 		INIT_LIST_HEAD(&sd->poll_list);
+		/*VATC*/
+		INIT_LIST_HEAD(&sd->kthread_list);
+				
 		sd->output_queue = NULL;
 		sd->output_queue_tailp = &sd->output_queue;
 #ifdef CONFIG_RPS
@@ -6329,6 +6517,31 @@ static int __init net_dev_init(void)
 
 	if (register_pernet_device(&default_device_ops))
 		goto out;
+
+	/*VATC*/
+	NIC_dev = NULL;
+	NIC_name_len=sizeof("ens1");
+	memcpy(NIC_name, "ens1", NIC_name_len);
+	BQL_flag=1;
+	DQL_flag=1;
+	net_recv_flag=1;
+			
+	init_waitqueue_head(&net_recv_wq);
+	net_recv_task=kthread_create(net_recv_kthread, (void *)&per_cpu(softnet_data, 0), "net_recv/");		
+	if (IS_ERR(net_recv_task)) {
+		printk(KERN_ALERT "kthread_create() fails at net_recv/n");
+	}		
+	kthread_bind(net_recv_task,0);
+	wake_up_process(net_recv_task);
+
+	/*init_waitqueue_head(&tx_ring_clean_wq);
+	tx_ring_clean_task=kthread_create(tx_ring_clean_kthread, (void *)NIC_dev, "tx_ring_clean/");		
+	if (IS_ERR(tx_ring_clean_task)) {
+		printk(KERN_ALERT "kthread_create() fails at tx_ring_clean/n");
+	}		
+	kthread_bind(tx_ring_clean_task,0);
+	wake_up_process(tx_ring_clean_task);*/
+
 
 	open_softirq(NET_TX_SOFTIRQ, net_tx_action);
 	open_softirq(NET_RX_SOFTIRQ, net_rx_action);

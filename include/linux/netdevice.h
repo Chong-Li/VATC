@@ -51,6 +51,15 @@
 #include <linux/neighbour.h>
 #include <uapi/linux/netdevice.h>
 
+/*VATC*/
+extern wait_queue_head_t net_recv_wq;
+extern wait_queue_head_t* netbk_wq[6];
+extern wait_queue_head_t* netbk_tx_wq[6];
+extern struct net_device* NIC_dev;
+extern int BQL_flag;
+extern int DQL_flag;
+
+
 struct netpoll_info;
 struct device;
 struct phy_device;
@@ -311,6 +320,9 @@ struct napi_struct {
 	 * can remove from the list right before clearing the bit.
 	 */
 	struct list_head	poll_list;
+	/*VATC*/
+	struct list_head kthread_list;
+
 
 	unsigned long		state;
 	int			weight;
@@ -1045,6 +1057,12 @@ struct net_device {
 	 * of the interface.
 	 */
 	char			name[IFNAMSIZ];
+
+	/*VATC*/
+	int priority;
+	int domid;
+	int tx_flag[6];
+
 
 	/* device name hash chain, please keep it close to name[] */
 	struct hlist_node	name_hlist;
@@ -1808,6 +1826,13 @@ struct softnet_data {
 	unsigned int		dropped;
 	struct sk_buff_head	input_pkt_queue;
 	struct napi_struct	backlog;
+	/*VATC*/
+	struct list_head kthread_list;
+	u8 localdoms[20][ETH_ALEN];
+	struct net_device* dev_queue[20];
+	int dev_index;
+	int dom_index;
+
 };
 
 static inline void input_queue_head_incr(struct softnet_data *sd)
@@ -1846,6 +1871,8 @@ static inline void netif_tx_schedule_all(struct net_device *dev)
 static inline void netif_tx_start_queue(struct netdev_queue *dev_queue)
 {
 	clear_bit(__QUEUE_STATE_DRV_XOFF, &dev_queue->state);
+	/*VATC*/
+	BQL_flag=1;
 }
 
 /**
@@ -1877,8 +1904,11 @@ static inline void netif_tx_wake_queue(struct netdev_queue *dev_queue)
 		return;
 	}
 #endif
-	if (test_and_clear_bit(__QUEUE_STATE_DRV_XOFF, &dev_queue->state))
+	if (test_and_clear_bit(__QUEUE_STATE_DRV_XOFF, &dev_queue->state)) {
 		__netif_schedule(dev_queue->qdisc);
+		/*VATC*/
+		BQL_flag=1;
+	}
 }
 
 /**
@@ -1910,6 +1940,8 @@ static inline void netif_tx_stop_queue(struct netdev_queue *dev_queue)
 		return;
 	}
 	set_bit(__QUEUE_STATE_DRV_XOFF, &dev_queue->state);
+	/*VATC*/
+	BQL_flag = 0;
 }
 
 /**
@@ -1970,6 +2002,9 @@ static inline void netdev_tx_sent_queue(struct netdev_queue *dev_queue,
 		return;
 
 	set_bit(__QUEUE_STATE_STACK_XOFF, &dev_queue->state);
+	/*VATC*/
+	BQL_flag=0;
+
 
 	/*
 	 * The XOFF flag must be set before checking the dql_avail below,
@@ -1979,8 +2014,11 @@ static inline void netdev_tx_sent_queue(struct netdev_queue *dev_queue,
 	smp_mb();
 
 	/* check again in case another CPU has just made room avail */
-	if (unlikely(dql_avail(&dev_queue->dql) >= 0))
+	if (unlikely(dql_avail(&dev_queue->dql) >= 0)) {
 		clear_bit(__QUEUE_STATE_STACK_XOFF, &dev_queue->state);
+		/*VATC*/
+		BQL_flag=1;
+	}
 #endif
 }
 
@@ -2008,6 +2046,9 @@ static inline void netdev_tx_completed_queue(struct netdev_queue *dev_queue,
 	if (dql_avail(&dev_queue->dql) < 0)
 		return;
 
+	/*VATC*/
+	BQL_flag=1;
+
 	if (test_and_clear_bit(__QUEUE_STATE_STACK_XOFF, &dev_queue->state))
 		netif_schedule_queue(dev_queue);
 #endif
@@ -2024,6 +2065,8 @@ static inline void netdev_tx_reset_queue(struct netdev_queue *q)
 #ifdef CONFIG_BQL
 	clear_bit(__QUEUE_STATE_STACK_XOFF, &q->state);
 	dql_reset(&q->dql);
+	/*VATC*/
+	BQL_flag=1;
 #endif
 }
 
