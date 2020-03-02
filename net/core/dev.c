@@ -2836,7 +2836,8 @@ int dev_queue_xmit(struct sk_buff *skb)
 #ifdef NEW
 		//rcu_read_lock_bh();
 		qdisc_skb_cb(skb)->pkt_len = skb->len;
-		skb=dev_hard_start_xmit(skb,dev,txq,&rc);
+		//skb=dev_hard_start_xmit(skb,dev,txq,&rc);
+		rc=dev_hard_start_xmit(skb,dev,txq);
 		if((BQL_flag==0 ||DQL_flag==0)&&skb){
 			rcu_read_unlock_bh();
 			return 110;
