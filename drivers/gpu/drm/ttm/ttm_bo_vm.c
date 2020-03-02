@@ -28,6 +28,8 @@
  * Authors: Thomas Hellstrom <thellstrom-at-vmware-dot-com>
  */
 
+#define pr_fmt(fmt) "[TTM] " fmt
+
 #include <ttm/ttm_module.h>
 #include <ttm/ttm_bo_driver.h>
 #include <ttm/ttm_placement.h>
@@ -145,7 +147,7 @@ static int ttm_bo_vm_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 
 	page_offset = ((address - vma->vm_start) >> PAGE_SHIFT) +
 	    bo->vm_node->start - vma->vm_pgoff;
-	page_last = ((vma->vm_end - vma->vm_start) >> PAGE_SHIFT) +
+	page_last = vma_pages(vma) +
 	    bo->vm_node->start - vma->vm_pgoff;
 
 	if (unlikely(page_offset >= bo->num_pages)) {
@@ -256,14 +258,13 @@ int ttm_bo_mmap(struct file *filp, struct vm_area_struct *vma,
 
 	read_lock(&bdev->vm_lock);
 	bo = ttm_bo_vm_lookup_rb(bdev, vma->vm_pgoff,
-				 (vma->vm_end - vma->vm_start) >> PAGE_SHIFT);
-	if (likely(bo != NULL))
-		ttm_bo_reference(bo);
+				 vma_pages(vma));
+	if (likely(bo != NULL) && !kref_get_unless_zero(&bo->kref))
+		bo = NULL;
 	read_unlock(&bdev->vm_lock);
 
 	if (unlikely(bo == NULL)) {
-		printk(KERN_ERR TTM_PFX
-		       "Could not find buffer object to map.\n");
+		pr_err("Could not find buffer object to map\n");
 		return -EINVAL;
 	}
 
@@ -284,7 +285,7 @@ int ttm_bo_mmap(struct file *filp, struct vm_area_struct *vma,
 	 */
 
 	vma->vm_private_data = bo;
-	vma->vm_flags |= VM_RESERVED | VM_IO | VM_MIXEDMAP | VM_DONTEXPAND;
+	vma->vm_flags |= VM_IO | VM_MIXEDMAP | VM_DONTEXPAND | VM_DONTDUMP;
 	return 0;
 out_unref:
 	ttm_bo_unref(&bo);
@@ -299,7 +300,7 @@ int ttm_fbdev_mmap(struct vm_area_struct *vma, struct ttm_buffer_object *bo)
 
 	vma->vm_ops = &ttm_bo_vm_ops;
 	vma->vm_private_data = ttm_bo_reference(bo);
-	vma->vm_flags |= VM_RESERVED | VM_IO | VM_MIXEDMAP | VM_DONTEXPAND;
+	vma->vm_flags |= VM_IO | VM_MIXEDMAP | VM_DONTEXPAND;
 	return 0;
 }
 EXPORT_SYMBOL(ttm_fbdev_mmap);

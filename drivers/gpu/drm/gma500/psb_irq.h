@@ -21,8 +21,8 @@
  *
  **************************************************************************/
 
-#ifndef _SYSIRQ_H_
-#define _SYSIRQ_H_
+#ifndef _PSB_IRQ_H_
+#define _PSB_IRQ_H_
 
 #include <drm/drmP.h>
 
@@ -42,4 +42,6 @@ int  psb_enable_vblank(struct drm_device *dev, int pipe);
 void psb_disable_vblank(struct drm_device *dev, int pipe);
 u32  psb_get_vblank_counter(struct drm_device *dev, int pipe);
 
-#endif /* _SYSIRQ_H_ */
+int mdfld_enable_te(struct drm_device *dev, int pipe);
+void mdfld_disable_te(struct drm_device *dev, int pipe);
+#endif /* _PSB_IRQ_H_ */

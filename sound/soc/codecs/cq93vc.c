@@ -38,8 +38,6 @@
 #include <sound/soc.h>
 #include <sound/initval.h>
 
-#include <mach/dm365.h>
-
 static inline unsigned int cq93vc_read(struct snd_soc_codec *codec,
 						unsigned int reg)
 {
@@ -159,7 +157,7 @@ static int cq93vc_probe(struct snd_soc_codec *codec)
 	codec->control_data = davinci_vc;
 
 	/* Set controls */
-	snd_soc_add_controls(codec, cq93vc_snd_controls,
+	snd_soc_add_codec_controls(codec, cq93vc_snd_controls,
 			     ARRAY_SIZE(cq93vc_snd_controls));
 
 	/* Off, with power on */
@@ -203,7 +201,7 @@ static struct platform_driver cq93vc_codec_driver = {
 	},
 
 	.probe = cq93vc_platform_probe,
-	.remove = __devexit_p(cq93vc_platform_remove),
+	.remove = cq93vc_platform_remove,
 };
 
 module_platform_driver(cq93vc_codec_driver);

@@ -41,7 +41,7 @@
 static int msglevel = MSG_LEVEL_INFO;
 
 #ifdef WPA_SM_Transtatus
-	SWPAResult wpa_Result;
+SWPAResult wpa_Result;
 #endif
 
 int private_ioctl(PSDevice pDevice, struct ifreq *rq)
@@ -104,14 +104,14 @@ int private_ioctl(PSDevice pDevice, struct ifreq *rq)
 			BSSvClearBSSList((void *)pDevice, pDevice->bLinkPass);
 
 		if (pItemSSID->len != 0)
-			bScheduleCommand((void *) pDevice, WLAN_CMD_BSSID_SCAN, abyScanSSID);
+			bScheduleCommand((void *)pDevice, WLAN_CMD_BSSID_SCAN, abyScanSSID);
 		else
-			bScheduleCommand((void *) pDevice, WLAN_CMD_BSSID_SCAN, NULL);
+			bScheduleCommand((void *)pDevice, WLAN_CMD_BSSID_SCAN, NULL);
 		spin_unlock_irq(&pDevice->lock);
 		break;
 
 	case WLAN_CMD_ZONETYPE_SET:
-		/* mike add :cann't support. */
+		/* mike add :can't support. */
 		result = -EOPNOTSUPP;
 		break;
 
@@ -202,8 +202,8 @@ int private_ioctl(PSDevice pDevice, struct ifreq *rq)
 		netif_stop_queue(pDevice->dev);
 		spin_lock_irq(&pDevice->lock);
 		pMgmt->eCurrState = WMAC_STATE_IDLE;
-		bScheduleCommand((void *) pDevice, WLAN_CMD_BSSID_SCAN, pMgmt->abyDesireSSID);
-		bScheduleCommand((void *) pDevice, WLAN_CMD_SSID, NULL);
+		bScheduleCommand((void *)pDevice, WLAN_CMD_BSSID_SCAN, pMgmt->abyDesireSSID);
+		bScheduleCommand((void *)pDevice, WLAN_CMD_SSID, NULL);
 		spin_unlock_irq(&pDevice->lock);
 		break;
 
@@ -267,7 +267,7 @@ int private_ioctl(PSDevice pDevice, struct ifreq *rq)
 			memcpy(sLinkStatus.abySSID, pItemSSID->abySSID, pItemSSID->len);
 			memcpy(sLinkStatus.abyBSSID, pMgmt->abyCurrBSSID, WLAN_BSSID_LEN);
 			sLinkStatus.uLinkRate = pMgmt->sNodeDBTable[0].wTxDataRate;
-			DBG_PRT(MSG_LEVEL_DEBUG, KERN_INFO" Link Success!\n");
+			DBG_PRT(MSG_LEVEL_DEBUG, KERN_INFO " Link Success!\n");
 		} else {
 			sLinkStatus.bLink = false;
 			sLinkStatus.uLinkRate = 0;
@@ -311,7 +311,7 @@ int private_ioctl(PSDevice pDevice, struct ifreq *rq)
 		}
 		pList->uItem = sList.uItem;
 		pBSS = &(pMgmt->sBSSList[0]);
-		for (ii = 0, jj = 0; jj < MAX_BSS_NUM ; jj++) {
+		for (ii = 0, jj = 0; jj < MAX_BSS_NUM; jj++) {
 			pBSS = &(pMgmt->sBSSList[jj]);
 			if (pBSS->bActive) {
 				pList->sBSSIDList[ii].uChannel = pBSS->uChannel;
@@ -324,16 +324,16 @@ int private_ioctl(PSDevice pDevice, struct ifreq *rq)
 				pItemSSID = (PWLAN_IE_SSID)pBSS->abySSID;
 				memset(pList->sBSSIDList[ii].abySSID, 0, WLAN_SSID_MAXLEN + 1);
 				memcpy(pList->sBSSIDList[ii].abySSID, pItemSSID->abySSID, pItemSSID->len);
-				if (WLAN_GET_CAP_INFO_ESS(pBSS->wCapInfo)) {
+				if (WLAN_GET_CAP_INFO_ESS(pBSS->wCapInfo))
 					pList->sBSSIDList[ii].byNetType = INFRA;
-				} else {
+				else
 					pList->sBSSIDList[ii].byNetType = ADHOC;
-				}
-				if (WLAN_GET_CAP_INFO_PRIVACY(pBSS->wCapInfo)) {
+
+				if (WLAN_GET_CAP_INFO_PRIVACY(pBSS->wCapInfo))
 					pList->sBSSIDList[ii].bWEPOn = true;
-				} else {
+				else
 					pList->sBSSIDList[ii].bWEPOn = false;
-				}
+
 				ii++;
 				if (ii >= pList->uItem)
 					break;
@@ -367,9 +367,9 @@ int private_ioctl(PSDevice pDevice, struct ifreq *rq)
 		netif_stop_queue(pDevice->dev);
 
 		spin_lock_irq(&pDevice->lock);
-		if (pDevice->bRadioOff == false) {
+		if (pDevice->bRadioOff == false)
 			CARDbRadioPowerOff(pDevice);
-		}
+
 		pDevice->bLinkPass = false;
 		memset(pMgmt->abyCurrBSSID, 0, 6);
 		pMgmt->eCurrState = WMAC_STATE_IDLE;
@@ -489,13 +489,12 @@ int private_ioctl(PSDevice pDevice, struct ifreq *rq)
 			break;
 		}
 
-		if (sStartAPCmd.wBBPType == PHY80211g) {
+		if (sStartAPCmd.wBBPType == PHY80211g)
 			pMgmt->byAPBBType = PHY_TYPE_11G;
-		} else if (sStartAPCmd.wBBPType == PHY80211a) {
+		else if (sStartAPCmd.wBBPType == PHY80211a)
 			pMgmt->byAPBBType = PHY_TYPE_11A;
-		} else {
+		else
 			pMgmt->byAPBBType = PHY_TYPE_11B;
-		}
 
 		pItemSSID = (PWLAN_IE_SSID)sStartAPCmd.ssid;
 		if (pItemSSID->len > WLAN_SSID_MAXLEN + 1)
@@ -540,11 +539,8 @@ int private_ioctl(PSDevice pDevice, struct ifreq *rq)
 			pMgmt->abyIBSSSuppRates[3] |= BIT7;
 		}
 
-		DBG_PRT(MSG_LEVEL_DEBUG, KERN_INFO "Support Rate= %x %x %x %x\n",
-			pMgmt->abyIBSSSuppRates[2],
-			pMgmt->abyIBSSSuppRates[3],
-			pMgmt->abyIBSSSuppRates[4],
-			pMgmt->abyIBSSSuppRates[5]);
+		DBG_PRT(MSG_LEVEL_DEBUG, KERN_INFO "Support Rate= %*ph\n",
+			4, pMgmt->abyIBSSSuppRates + 2);
 
 		netif_stop_queue(pDevice->dev);
 		spin_lock_irq(&pDevice->lock);

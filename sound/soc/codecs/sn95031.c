@@ -827,8 +827,6 @@ static int sn95031_codec_probe(struct snd_soc_codec *codec)
 {
 	pr_debug("codec_probe called\n");
 
-	codec->dapm.idle_bias_off = 1;
-
 	/* PCM interface config
 	 * This sets the pcm rx slot conguration to max 6 slots
 	 * for max 4 dais (2 stereo and 2 mono)
@@ -871,7 +869,7 @@ static int sn95031_codec_probe(struct snd_soc_codec *codec)
 	snd_soc_write(codec, SN95031_SSR2, 0x10);
 	snd_soc_write(codec, SN95031_SSR3, 0x40);
 
-	snd_soc_add_controls(codec, sn95031_snd_controls,
+	snd_soc_add_codec_controls(codec, sn95031_snd_controls,
 			     ARRAY_SIZE(sn95031_snd_controls));
 
 	return 0;
@@ -891,20 +889,21 @@ struct snd_soc_codec_driver sn95031_codec = {
 	.read		= sn95031_read,
 	.write		= sn95031_write,
 	.set_bias_level	= sn95031_set_vaud_bias,
+	.idle_bias_off	= true,
 	.dapm_widgets	= sn95031_dapm_widgets,
 	.num_dapm_widgets	= ARRAY_SIZE(sn95031_dapm_widgets),
 	.dapm_routes	= sn95031_audio_map,
 	.num_dapm_routes	= ARRAY_SIZE(sn95031_audio_map),
 };
 
-static int __devinit sn95031_device_probe(struct platform_device *pdev)
+static int sn95031_device_probe(struct platform_device *pdev)
 {
 	pr_debug("codec device probe called for %s\n", dev_name(&pdev->dev));
 	return snd_soc_register_codec(&pdev->dev, &sn95031_codec,
 			sn95031_dais, ARRAY_SIZE(sn95031_dais));
 }
 
-static int __devexit sn95031_device_remove(struct platform_device *pdev)
+static int sn95031_device_remove(struct platform_device *pdev)
 {
 	pr_debug("codec device remove called\n");
 	snd_soc_unregister_codec(&pdev->dev);
@@ -917,7 +916,7 @@ static struct platform_driver sn95031_codec_driver = {
 		.owner		= THIS_MODULE,
 	},
 	.probe		= sn95031_device_probe,
-	.remove		= __devexit_p(sn95031_device_remove),
+	.remove		= sn95031_device_remove,
 };
 
 module_platform_driver(sn95031_codec_driver);

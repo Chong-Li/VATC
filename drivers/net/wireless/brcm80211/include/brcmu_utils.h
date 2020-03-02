@@ -120,6 +120,10 @@ extern struct sk_buff *brcmu_pktq_penq_head(struct pktq *pq, int prec,
 				      struct sk_buff *p);
 extern struct sk_buff *brcmu_pktq_pdeq(struct pktq *pq, int prec);
 extern struct sk_buff *brcmu_pktq_pdeq_tail(struct pktq *pq, int prec);
+extern struct sk_buff *brcmu_pktq_pdeq_match(struct pktq *pq, int prec,
+					     bool (*match_fn)(struct sk_buff *p,
+							      void *arg),
+					     void *arg);
 
 /* packet primitives */
 extern struct sk_buff *brcmu_pkt_buf_get_skb(uint len);
@@ -173,13 +177,47 @@ extern void brcmu_pktq_flush(struct pktq *pq, bool dir,
 /* ip address */
 struct ipv4_addr;
 
+/*
+ * bitfield macros using masking and shift
+ *
+ * remark: the mask parameter should be a shifted mask.
+ */
+static inline void brcmu_maskset32(u32 *var, u32 mask, u8 shift, u32 value)
+{
+	value = (value << shift) & mask;
+	*var = (*var & ~mask) | value;
+}
+static inline u32 brcmu_maskget32(u32 var, u32 mask, u8 shift)
+{
+	return (var & mask) >> shift;
+}
+static inline void brcmu_maskset16(u16 *var, u16 mask, u8 shift, u16 value)
+{
+	value = (value << shift) & mask;
+	*var = (*var & ~mask) | value;
+}
+static inline u16 brcmu_maskget16(u16 var, u16 mask, u8 shift)
+{
+	return (var & mask) >> shift;
+}
 
 /* externs */
 /* format/print */
-#ifdef BCMDBG
+#ifdef DEBUG
 extern void brcmu_prpkt(const char *msg, struct sk_buff *p0);
 #else
 #define brcmu_prpkt(a, b)
-#endif				/* BCMDBG */
+#endif				/* DEBUG */
+
+#ifdef DEBUG
+extern __printf(3, 4)
+void brcmu_dbg_hex_dump(const void *data, size_t size, const char *fmt, ...);
+#else
+__printf(3, 4)
+static inline
+void brcmu_dbg_hex_dump(const void *data, size_t size, const char *fmt, ...)
+{
+}
+#endif
 
 #endif				/* _BRCMU_UTILS_H_ */

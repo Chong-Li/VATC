@@ -28,6 +28,8 @@
  * Authors: Thomas Hellstrom <thellstrom-at-vmware-dot-com>
  */
 
+#define pr_fmt(fmt) "[TTM] " fmt
+
 #include <linux/sched.h>
 #include <linux/highmem.h>
 #include <linux/pagemap.h>
@@ -36,12 +38,12 @@
 #include <linux/swap.h>
 #include <linux/slab.h>
 #include <linux/export.h>
-#include "drm_cache.h"
-#include "drm_mem_util.h"
-#include "ttm/ttm_module.h"
-#include "ttm/ttm_bo_driver.h"
-#include "ttm/ttm_placement.h"
-#include "ttm/ttm_page_alloc.h"
+#include <drm/drm_cache.h>
+#include <drm/drm_mem_util.h>
+#include <drm/ttm/ttm_module.h>
+#include <drm/ttm/ttm_bo_driver.h>
+#include <drm/ttm/ttm_placement.h>
+#include <drm/ttm/ttm_page_alloc.h>
 
 /**
  * Allocates storage for pointers to the pages that back the ttm.
@@ -168,7 +170,7 @@ void ttm_tt_destroy(struct ttm_tt *ttm)
 		ttm_tt_unbind(ttm);
 	}
 
-	if (likely(ttm->pages != NULL)) {
+	if (ttm->state == tt_unbound) {
 		ttm->bdev->driver->ttm_tt_unpopulate(ttm);
 	}
 
@@ -196,7 +198,7 @@ int ttm_tt_init(struct ttm_tt *ttm, struct ttm_bo_device *bdev,
 	ttm_tt_alloc_page_directory(ttm);
 	if (!ttm->pages) {
 		ttm_tt_destroy(ttm);
-		printk(KERN_ERR TTM_PFX "Failed allocating page table\n");
+		pr_err("Failed allocating page table\n");
 		return -ENOMEM;
 	}
 	return 0;
@@ -229,7 +231,7 @@ int ttm_dma_tt_init(struct ttm_dma_tt *ttm_dma, struct ttm_bo_device *bdev,
 	ttm_dma_tt_alloc_page_directory(ttm_dma);
 	if (!ttm->pages || !ttm_dma->dma_address) {
 		ttm_tt_destroy(ttm);
-		printk(KERN_ERR TTM_PFX "Failed allocating page table\n");
+		pr_err("Failed allocating page table\n");
 		return -ENOMEM;
 	}
 	return 0;
@@ -288,15 +290,13 @@ int ttm_tt_swapin(struct ttm_tt *ttm)
 	struct file *swap_storage;
 	struct page *from_page;
 	struct page *to_page;
-	void *from_virtual;
-	void *to_virtual;
 	int i;
 	int ret = -ENOMEM;
 
 	swap_storage = ttm->swap_storage;
 	BUG_ON(swap_storage == NULL);
 
-	swap_space = swap_storage->f_path.dentry->d_inode->i_mapping;
+	swap_space = file_inode(swap_storage)->i_mapping;
 
 	for (i = 0; i < ttm->num_pages; ++i) {
 		from_page = shmem_read_mapping_page(swap_space, i);
@@ -308,13 +308,7 @@ int ttm_tt_swapin(struct ttm_tt *ttm)
 		if (unlikely(to_page == NULL))
 			goto out_err;
 
-		preempt_disable();
-		from_virtual = kmap_atomic(from_page, KM_USER0);
-		to_virtual = kmap_atomic(to_page, KM_USER1);
-		memcpy(to_virtual, from_virtual, PAGE_SIZE);
-		kunmap_atomic(to_virtual, KM_USER1);
-		kunmap_atomic(from_virtual, KM_USER0);
-		preempt_enable();
+		copy_highpage(to_page, from_page);
 		page_cache_release(from_page);
 	}
 
@@ -334,8 +328,6 @@ int ttm_tt_swapout(struct ttm_tt *ttm, struct file *persistent_swap_storage)
 	struct file *swap_storage;
 	struct page *from_page;
 	struct page *to_page;
-	void *from_virtual;
-	void *to_virtual;
 	int i;
 	int ret = -ENOMEM;
 
@@ -347,13 +339,13 @@ int ttm_tt_swapout(struct ttm_tt *ttm, struct file *persistent_swap_storage)
 						ttm->num_pages << PAGE_SHIFT,
 						0);
 		if (unlikely(IS_ERR(swap_storage))) {
-			printk(KERN_ERR "Failed allocating swap storage.\n");
+			pr_err("Failed allocating swap storage\n");
 			return PTR_ERR(swap_storage);
 		}
 	} else
 		swap_storage = persistent_swap_storage;
 
-	swap_space = swap_storage->f_path.dentry->d_inode->i_mapping;
+	swap_space = file_inode(swap_storage)->i_mapping;
 
 	for (i = 0; i < ttm->num_pages; ++i) {
 		from_page = ttm->pages[i];
@@ -364,13 +356,7 @@ int ttm_tt_swapout(struct ttm_tt *ttm, struct file *persistent_swap_storage)
 			ret = PTR_ERR(to_page);
 			goto out_err;
 		}
-		preempt_disable();
-		from_virtual = kmap_atomic(from_page, KM_USER0);
-		to_virtual = kmap_atomic(to_page, KM_USER1);
-		memcpy(to_virtual, from_virtual, PAGE_SIZE);
-		kunmap_atomic(to_virtual, KM_USER1);
-		kunmap_atomic(from_virtual, KM_USER0);
-		preempt_enable();
+		copy_highpage(to_page, from_page);
 		set_page_dirty(to_page);
 		mark_page_accessed(to_page);
 		page_cache_release(to_page);

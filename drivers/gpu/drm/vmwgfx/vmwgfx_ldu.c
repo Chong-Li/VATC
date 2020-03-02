@@ -354,8 +354,8 @@ static int vmw_ldu_init(struct vmw_private *dev_priv, unsigned unit)
 	INIT_LIST_HEAD(&ldu->active);
 
 	ldu->base.pref_active = (unit == 0);
-	ldu->base.pref_width = 800;
-	ldu->base.pref_height = 600;
+	ldu->base.pref_width = dev_priv->initial_width;
+	ldu->base.pref_height = dev_priv->initial_height;
 	ldu->base.pref_mode = NULL;
 	ldu->base.is_implicit = true;
 
@@ -373,7 +373,7 @@ static int vmw_ldu_init(struct vmw_private *dev_priv, unsigned unit)
 
 	drm_mode_crtc_set_gamma_size(crtc, 256);
 
-	drm_connector_attach_property(connector,
+	drm_object_attach_property(&connector->base,
 				      dev->mode_config.dirty_info_property,
 				      1);
 

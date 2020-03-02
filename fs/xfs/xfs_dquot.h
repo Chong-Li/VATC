@@ -29,28 +29,22 @@
  * when quotas are off.
  */
 
-/*
- * The hash chain headers (hash buckets)
- */
-typedef struct xfs_dqhash {
-	struct list_head  qh_list;
-	struct mutex	  qh_lock;
-	uint		  qh_version;	/* ever increasing version */
-	uint		  qh_nelems;	/* number of dquots on the list */
-} xfs_dqhash_t;
-
 struct xfs_mount;
 struct xfs_trans;
+
+enum {
+	XFS_QLOWSP_1_PCNT = 0,
+	XFS_QLOWSP_3_PCNT,
+	XFS_QLOWSP_5_PCNT,
+	XFS_QLOWSP_MAX
+};
 
 /*
  * The incore dquot structure
  */
 typedef struct xfs_dquot {
 	uint		 dq_flags;	/* various flags (XFS_DQ_*) */
-	struct list_head q_freelist;	/* global free list of dquots */
-	struct list_head q_mplist;	/* mount's list of dquots */
-	struct list_head q_hashlist;	/* gloabl hash list of dquots */
-	xfs_dqhash_t	*q_hash;	/* the hashchain header */
+	struct list_head q_lru;		/* global free list of dquots */
 	struct xfs_mount*q_mount;	/* filesystem this relates to */
 	struct xfs_trans*q_transp;	/* trans this belongs to currently */
 	uint		 q_nrefs;	/* # active refs from inodes */
@@ -64,6 +58,9 @@ typedef struct xfs_dquot {
 	xfs_qcnt_t	 q_res_bcount;	/* total regular nblks used+reserved */
 	xfs_qcnt_t	 q_res_icount;	/* total inos allocd+reserved */
 	xfs_qcnt_t	 q_res_rtbcount;/* total realtime blks used+reserved */
+	xfs_qcnt_t	 q_prealloc_lo_wmark;/* prealloc throttle wmark */
+	xfs_qcnt_t	 q_prealloc_hi_wmark;/* prealloc disabled wmark */
+	int64_t		 q_low_space[XFS_QLOWSP_MAX];
 	struct mutex	 q_qlock;	/* quota lock */
 	struct completion q_flush;	/* flush completion queue */
 	atomic_t          q_pincount;	/* dquot pin count */
@@ -110,9 +107,35 @@ static inline void xfs_dqlock(struct xfs_dquot *dqp)
 	mutex_lock(&dqp->q_qlock);
 }
 
-static inline void xfs_dqunlock_nonotify(struct xfs_dquot *dqp)
+static inline void xfs_dqunlock(struct xfs_dquot *dqp)
 {
 	mutex_unlock(&dqp->q_qlock);
+}
+
+static inline int xfs_this_quota_on(struct xfs_mount *mp, int type)
+{
+	switch (type & XFS_DQ_ALLTYPES) {
+	case XFS_DQ_USER:
+		return XFS_IS_UQUOTA_ON(mp);
+	case XFS_DQ_GROUP:
+	case XFS_DQ_PROJ:
+		return XFS_IS_OQUOTA_ON(mp);
+	default:
+		return 0;
+	}
+}
+
+static inline xfs_dquot_t *xfs_inode_dquot(struct xfs_inode *ip, int type)
+{
+	switch (type & XFS_DQ_ALLTYPES) {
+	case XFS_DQ_USER:
+		return ip->i_udquot;
+	case XFS_DQ_GROUP:
+	case XFS_DQ_PROJ:
+		return ip->i_gdquot;
+	default:
+		return NULL;
+	}
 }
 
 #define XFS_DQ_IS_LOCKED(dqp)	(mutex_is_locked(&((dqp)->q_qlock)))
@@ -125,27 +148,22 @@ static inline void xfs_dqunlock_nonotify(struct xfs_dquot *dqp)
 				 XFS_DQ_TO_QINF(dqp)->qi_uquotaip : \
 				 XFS_DQ_TO_QINF(dqp)->qi_gquotaip)
 
-#define XFS_IS_THIS_QUOTA_OFF(d) (! (XFS_QM_ISUDQ(d) ? \
-				     (XFS_IS_UQUOTA_ON((d)->q_mount)) : \
-				     (XFS_IS_OQUOTA_ON((d)->q_mount))))
-
 extern int		xfs_qm_dqread(struct xfs_mount *, xfs_dqid_t, uint,
 					uint, struct xfs_dquot	**);
 extern void		xfs_qm_dqdestroy(xfs_dquot_t *);
-extern int		xfs_qm_dqflush(xfs_dquot_t *, uint);
-extern void		xfs_qm_dqpurge(xfs_dquot_t *);
+extern int		xfs_qm_dqflush(struct xfs_dquot *, struct xfs_buf **);
 extern void		xfs_qm_dqunpin_wait(xfs_dquot_t *);
 extern void		xfs_qm_adjust_dqtimers(xfs_mount_t *,
 					xfs_disk_dquot_t *);
-extern void		xfs_qm_adjust_dqlimits(xfs_mount_t *,
-					xfs_disk_dquot_t *);
+extern void		xfs_qm_adjust_dqlimits(struct xfs_mount *,
+					       struct xfs_dquot *);
 extern int		xfs_qm_dqget(xfs_mount_t *, xfs_inode_t *,
 					xfs_dqid_t, uint, uint, xfs_dquot_t **);
 extern void		xfs_qm_dqput(xfs_dquot_t *);
 
 extern void		xfs_dqlock2(struct xfs_dquot *, struct xfs_dquot *);
-extern void		xfs_dqunlock(struct xfs_dquot *);
-extern void		xfs_dqflock_pushbuf_wait(struct xfs_dquot *dqp);
+
+extern void		xfs_dquot_set_prealloc_limits(struct xfs_dquot *);
 
 static inline struct xfs_dquot *xfs_qm_dqhold(struct xfs_dquot *dqp)
 {
@@ -154,5 +172,7 @@ static inline struct xfs_dquot *xfs_qm_dqhold(struct xfs_dquot *dqp)
 	xfs_dqunlock(dqp);
 	return dqp;
 }
+
+extern const struct xfs_buf_ops xfs_dquot_buf_ops;
 
 #endif /* __XFS_DQUOT_H__ */

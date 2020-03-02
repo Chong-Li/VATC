@@ -441,11 +441,14 @@ static bool ftmac100_rx_packet(struct ftmac100 *priv, int *processed)
 	skb->len += length;
 	skb->data_len += length;
 
-	/* page might be freed in __pskb_pull_tail() */
-	if (length > 64)
+	if (length > 128) {
 		skb->truesize += PAGE_SIZE;
-	__pskb_pull_tail(skb, min(length, 64));
-
+		/* We pull the minimum amount into linear part */
+		__pskb_pull_tail(skb, ETH_HLEN);
+	} else {
+		/* Small frames are copied into linear part to free one page */
+		__pskb_pull_tail(skb, length);
+	}
 	ftmac100_alloc_rx_page(priv, rxdes, GFP_ATOMIC);
 
 	ftmac100_rx_pointer_advance(priv);
@@ -729,12 +732,12 @@ static int ftmac100_alloc_buffers(struct ftmac100 *priv)
 {
 	int i;
 
-	priv->descs = dma_alloc_coherent(priv->dev, sizeof(struct ftmac100_descs),
-					 &priv->descs_dma_addr, GFP_KERNEL);
+	priv->descs = dma_alloc_coherent(priv->dev,
+					 sizeof(struct ftmac100_descs),
+					 &priv->descs_dma_addr,
+					 GFP_KERNEL | __GFP_ZERO);
 	if (!priv->descs)
 		return -ENOMEM;
-
-	memset(priv->descs, 0, sizeof(struct ftmac100_descs));
 
 	/* initialize RX ring */
 	ftmac100_rxdes_set_end_of_ring(&priv->descs->rxdes[RX_QUEUE_ENTRIES - 1]);
@@ -817,9 +820,9 @@ static void ftmac100_mdio_write(struct net_device *netdev, int phy_id, int reg,
 static void ftmac100_get_drvinfo(struct net_device *netdev,
 				 struct ethtool_drvinfo *info)
 {
-	strcpy(info->driver, DRV_NAME);
-	strcpy(info->version, DRV_VERSION);
-	strcpy(info->bus_info, dev_name(&netdev->dev));
+	strlcpy(info->driver, DRV_NAME, sizeof(info->driver));
+	strlcpy(info->version, DRV_VERSION, sizeof(info->version));
+	strlcpy(info->bus_info, dev_name(&netdev->dev), sizeof(info->bus_info));
 }
 
 static int ftmac100_get_settings(struct net_device *netdev, struct ethtool_cmd *cmd)
@@ -1133,7 +1136,7 @@ static int ftmac100_probe(struct platform_device *pdev)
 	netdev_info(netdev, "irq %d, mapped at %p\n", priv->irq, priv->base);
 
 	if (!is_valid_ether_addr(netdev->dev_addr)) {
-		random_ether_addr(netdev->dev_addr);
+		eth_hw_addr_random(netdev);
 		netdev_info(netdev, "generated random MAC address %pM\n",
 			    netdev->dev_addr);
 	}

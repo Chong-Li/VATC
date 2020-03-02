@@ -53,7 +53,6 @@
 #include <pcmcia/ss.h>
 
 #include <asm/io.h>
-#include <asm/system.h>
 #include <asm/uaccess.h>
 
 /*====================================================================*/
@@ -1500,7 +1499,7 @@ static void smc_rx(struct net_device *dev)
 	struct sk_buff *skb;
 	
 	/* Note: packet_length adds 5 or 6 extra bytes here! */
-	skb = dev_alloc_skb(packet_length+2);
+	skb = netdev_alloc_skb(dev, packet_length+2);
 	
 	if (skb == NULL) {
 	    pr_debug("%s: Low memory, packet dropped.\n", dev->name);
@@ -2055,16 +2054,4 @@ static struct pcmcia_driver smc91c92_cs_driver = {
 	.suspend	= smc91c92_suspend,
 	.resume		= smc91c92_resume,
 };
-
-static int __init init_smc91c92_cs(void)
-{
-	return pcmcia_register_driver(&smc91c92_cs_driver);
-}
-
-static void __exit exit_smc91c92_cs(void)
-{
-	pcmcia_unregister_driver(&smc91c92_cs_driver);
-}
-
-module_init(init_smc91c92_cs);
-module_exit(exit_smc91c92_cs);
+module_pcmcia_driver(smc91c92_cs_driver);

@@ -17,7 +17,8 @@
 #include <linux/spinlock.h>
 #include <linux/string.h>
 #include <linux/kobject.h>
-#include <linux/module.h>
+#include <linux/export.h>
+#include <linux/kmod.h>
 #include <linux/slab.h>
 #include <linux/user_namespace.h>
 #include <linux/socket.h>
@@ -372,13 +373,16 @@ EXPORT_SYMBOL_GPL(add_uevent_var);
 static int uevent_net_init(struct net *net)
 {
 	struct uevent_sock *ue_sk;
+	struct netlink_kernel_cfg cfg = {
+		.groups	= 1,
+		.flags	= NL_CFG_F_NONROOT_RECV,
+	};
 
 	ue_sk = kzalloc(sizeof(*ue_sk), GFP_KERNEL);
 	if (!ue_sk)
 		return -ENOMEM;
 
-	ue_sk->sk = netlink_kernel_create(net, NETLINK_KOBJECT_UEVENT,
-					  1, NULL, NULL, THIS_MODULE);
+	ue_sk->sk = netlink_kernel_create(net, NETLINK_KOBJECT_UEVENT, &cfg);
 	if (!ue_sk->sk) {
 		printk(KERN_ERR
 		       "kobject_uevent: unable to create netlink socket!\n");
@@ -418,7 +422,6 @@ static struct pernet_operations uevent_net_ops = {
 
 static int __init kobject_uevent_init(void)
 {
-	netlink_set_nonroot(NETLINK_KOBJECT_UEVENT, NL_NONROOT_RECV);
 	return register_pernet_subsys(&uevent_net_ops);
 }
 

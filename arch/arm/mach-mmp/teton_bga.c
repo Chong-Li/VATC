@@ -16,8 +16,9 @@
 #include <linux/kernel.h>
 #include <linux/platform_device.h>
 #include <linux/gpio.h>
+#include <linux/gpio-pxa.h>
 #include <linux/input.h>
-#include <plat/pxa27x_keypad.h>
+#include <linux/platform_data/keypad-pxa27x.h>
 #include <linux/i2c.h>
 
 #include <asm/mach-types.h>
@@ -26,6 +27,7 @@
 #include <mach/mfp-pxa168.h>
 #include <mach/pxa168.h>
 #include <mach/teton_bga.h>
+#include <mach/irqs.h>
 
 #include "common.h"
 
@@ -46,6 +48,10 @@ static unsigned long teton_bga_pin_config[] __initdata = {
 
 	/* RTC */
 	GPIO78_GPIO,
+};
+
+static struct pxa_gpio_platform_data pxa168_gpio_pdata = {
+	.irq_base	= MMP_GPIO_TO_IRQ(0),
 };
 
 static unsigned int teton_bga_matrix_key_map[] = {
@@ -78,14 +84,16 @@ static void __init teton_bga_init(void)
 	pxa168_add_uart(1);
 	pxa168_add_keypad(&teton_bga_keypad_info);
 	pxa168_add_twsi(0, NULL, ARRAY_AND_SIZE(teton_bga_i2c_info));
+	platform_device_add_data(&pxa168_device_gpio, &pxa168_gpio_pdata,
+				 sizeof(struct pxa_gpio_platform_data));
 	platform_device_register(&pxa168_device_gpio);
 }
 
 MACHINE_START(TETON_BGA, "PXA168-based Teton BGA Development Platform")
 	.map_io		= mmp_map_io,
-	.nr_irqs	= IRQ_BOARD_START,
+	.nr_irqs	= MMP_NR_IRQS,
 	.init_irq       = pxa168_init_irq,
-	.timer          = &pxa168_timer,
+	.init_time	= pxa168_timer_init,
 	.init_machine   = teton_bga_init,
 	.restart	= pxa168_restart,
 MACHINE_END

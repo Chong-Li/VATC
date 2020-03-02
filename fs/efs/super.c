@@ -33,6 +33,7 @@ static struct file_system_type efs_fs_type = {
 	.kill_sb	= kill_block_super,
 	.fs_flags	= FS_REQUIRES_DEV,
 };
+MODULE_ALIAS_FS("efs");
 
 static struct pt_types sgi_pt_types[] = {
 	{0x00,		"SGI vh"},
@@ -96,6 +97,11 @@ static int init_inodecache(void)
 
 static void destroy_inodecache(void)
 {
+	/*
+	 * Make sure all delayed rcu free inodes are flushed before we
+	 * destroy cache.
+	 */
+	rcu_barrier();
 	kmem_cache_destroy(efs_inode_cachep);
 }
 
@@ -317,10 +323,9 @@ static int efs_fill_super(struct super_block *s, void *d, int silent)
 		goto out_no_fs;
 	}
 
-	s->s_root = d_alloc_root(root);
+	s->s_root = d_make_root(root);
 	if (!(s->s_root)) {
 		printk(KERN_ERR "EFS: get root dentry failed\n");
-		iput(root);
 		ret = -ENOMEM;
 		goto out_no_fs;
 	}

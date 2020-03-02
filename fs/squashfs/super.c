@@ -158,8 +158,13 @@ static int squashfs_fill_super(struct super_block *sb, void *data, int silent)
 		goto failed_mount;
 	}
 
+	/* Check block log for sanity */
 	msblk->block_log = le16_to_cpu(sblk->block_log);
 	if (msblk->block_log > SQUASHFS_FILE_MAX_LOG)
+		goto failed_mount;
+
+	/* Check that block_size and block_log match */
+	if (msblk->block_size != (1 << msblk->block_log))
 		goto failed_mount;
 
 	/* Check the root inode for sanity */
@@ -316,11 +321,10 @@ check_directory_table:
 	}
 	insert_inode_hash(root);
 
-	sb->s_root = d_alloc_root(root);
+	sb->s_root = d_make_root(root);
 	if (sb->s_root == NULL) {
 		ERROR("Root inode create failed\n");
 		err = -ENOMEM;
-		iput(root);
 		goto failed_mount;
 	}
 
@@ -421,6 +425,11 @@ static int __init init_inodecache(void)
 
 static void destroy_inodecache(void)
 {
+	/*
+	 * Make sure all delayed rcu free inodes are flushed before we
+	 * destroy cache.
+	 */
+	rcu_barrier();
 	kmem_cache_destroy(squashfs_inode_cachep);
 }
 
@@ -480,6 +489,7 @@ static struct file_system_type squashfs_fs_type = {
 	.kill_sb = kill_block_super,
 	.fs_flags = FS_REQUIRES_DEV
 };
+MODULE_ALIAS_FS("squashfs");
 
 static const struct super_operations squashfs_super_ops = {
 	.alloc_inode = squashfs_alloc_inode,

@@ -43,7 +43,6 @@
 
 #include <asm/io.h>
 #include <asm/irq.h>
-#include <asm/system.h>
 
 #include <asm/macintosh.h>
 #include <asm/macints.h>
@@ -562,7 +561,8 @@ static int macscsi_pwrite (struct Scsi_Host *instance,
 
 static struct scsi_host_template driver_template = {
 	.proc_name			= "Mac5380",
-	.proc_info			= macscsi_proc_info,
+	.show_info			= macscsi_show_info,
+	.write_info			= macscsi_write_info,
 	.name				= "Macintosh NCR5380 SCSI",
 	.detect				= macscsi_detect,
 	.release			= macscsi_release,

@@ -132,7 +132,7 @@ txx9aclc_dma_submit(struct txx9aclc_dmadata *dmadata, dma_addr_t buf_dma_addr)
 	sg_set_page(&sg, pfn_to_page(PFN_DOWN(buf_dma_addr)),
 		    dmadata->frag_bytes, buf_dma_addr & (PAGE_SIZE - 1));
 	sg_dma_address(&sg) = buf_dma_addr;
-	desc = chan->device->device_prep_slave_sg(chan, &sg, 1,
+	desc = dmaengine_prep_slave_sg(chan, &sg, 1,
 		dmadata->substream->stream == SNDRV_PCM_STREAM_PLAYBACK ?
 		DMA_MEM_TO_DEV : DMA_DEV_TO_MEM,
 		DMA_PREP_INTERRUPT | DMA_CTRL_ACK);
@@ -417,12 +417,12 @@ static struct snd_soc_platform_driver txx9aclc_soc_platform = {
 	.pcm_free	= txx9aclc_pcm_free_dma_buffers,
 };
 
-static int __devinit txx9aclc_soc_platform_probe(struct platform_device *pdev)
+static int txx9aclc_soc_platform_probe(struct platform_device *pdev)
 {
 	return snd_soc_register_platform(&pdev->dev, &txx9aclc_soc_platform);
 }
 
-static int __devexit txx9aclc_soc_platform_remove(struct platform_device *pdev)
+static int txx9aclc_soc_platform_remove(struct platform_device *pdev)
 {
 	snd_soc_unregister_platform(&pdev->dev);
 	return 0;
@@ -435,7 +435,7 @@ static struct platform_driver txx9aclc_pcm_driver = {
 	},
 
 	.probe = txx9aclc_soc_platform_probe,
-	.remove = __devexit_p(txx9aclc_soc_platform_remove),
+	.remove = txx9aclc_soc_platform_remove,
 };
 
 module_platform_driver(txx9aclc_pcm_driver);

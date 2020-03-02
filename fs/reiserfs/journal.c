@@ -37,7 +37,7 @@
 #include <linux/time.h>
 #include <linux/semaphore.h>
 #include <linux/vmalloc.h>
-#include <linux/reiserfs_fs.h>
+#include "reiserfs.h"
 #include <linux/kernel.h>
 #include <linux/errno.h>
 #include <linux/fcntl.h>
@@ -51,7 +51,6 @@
 #include <linux/uaccess.h>
 #include <linux/slab.h>
 
-#include <asm/system.h>
 
 /* gets a struct reiserfs_journal_list * from a list head */
 #define JOURNAL_LIST_ENTRY(h) (list_entry((h), struct reiserfs_journal_list, \
@@ -98,7 +97,7 @@ static int flush_commit_list(struct super_block *s,
 static int can_dirty(struct reiserfs_journal_cnode *cn);
 static int journal_join(struct reiserfs_transaction_handle *th,
 			struct super_block *sb, unsigned long nblocks);
-static int release_journal_dev(struct super_block *super,
+static void release_journal_dev(struct super_block *super,
 			       struct reiserfs_journal *journal);
 static int dirty_one_transaction(struct super_block *s,
 				 struct reiserfs_journal_list *jl);
@@ -1924,6 +1923,8 @@ static int do_journal_release(struct reiserfs_transaction_handle *th,
 	 * the workqueue job (flush_async_commit) needs this lock
 	 */
 	reiserfs_write_unlock(sb);
+
+	cancel_delayed_work_sync(&REISERFS_SB(sb)->old_work);
 	flush_workqueue(commit_wq);
 
 	if (!reiserfs_mounted_fs_count) {
@@ -2531,23 +2532,13 @@ static void journal_list_init(struct super_block *sb)
 	SB_JOURNAL(sb)->j_current_jl = alloc_journal_list(sb);
 }
 
-static int release_journal_dev(struct super_block *super,
+static void release_journal_dev(struct super_block *super,
 			       struct reiserfs_journal *journal)
 {
-	int result;
-
-	result = 0;
-
 	if (journal->j_dev_bd != NULL) {
-		result = blkdev_put(journal->j_dev_bd, journal->j_dev_mode);
+		blkdev_put(journal->j_dev_bd, journal->j_dev_mode);
 		journal->j_dev_bd = NULL;
 	}
-
-	if (result != 0) {
-		reiserfs_warning(super, "sh-457",
-				 "Cannot release journal device: %i", result);
-	}
-	return result;
 }
 
 static int journal_init_dev(struct super_block *super,
@@ -3232,8 +3223,6 @@ int journal_mark_dirty(struct reiserfs_transaction_handle *th,
 			       th->t_trans_id, journal->j_trans_id);
 	}
 
-	sb->s_dirt = 1;
-
 	prepared = test_clear_buffer_journal_prepared(bh);
 	clear_buffer_journal_restore_dirty(bh);
 	/* already in this transaction, we are done */
@@ -3317,6 +3306,7 @@ int journal_mark_dirty(struct reiserfs_transaction_handle *th,
 		journal->j_first = cn;
 		journal->j_last = cn;
 	}
+	reiserfs_schedule_old_flush(sb);
 	return 0;
 }
 
@@ -3493,7 +3483,7 @@ static void flush_async_commits(struct work_struct *work)
 ** flushes any old transactions to disk
 ** ends the current transaction if it is too old
 */
-int reiserfs_flush_old_commits(struct super_block *sb)
+void reiserfs_flush_old_commits(struct super_block *sb)
 {
 	time_t now;
 	struct reiserfs_transaction_handle th;
@@ -3503,9 +3493,8 @@ int reiserfs_flush_old_commits(struct super_block *sb)
 	/* safety check so we don't flush while we are replaying the log during
 	 * mount
 	 */
-	if (list_empty(&journal->j_journal_list)) {
-		return 0;
-	}
+	if (list_empty(&journal->j_journal_list))
+		return;
 
 	/* check the current transaction.  If there are no writers, and it is
 	 * too old, finish it, and force the commit blocks to disk
@@ -3527,7 +3516,6 @@ int reiserfs_flush_old_commits(struct super_block *sb)
 			do_journal_end(&th, sb, 1, COMMIT_NOW | WAIT);
 		}
 	}
-	return sb->s_dirt;
 }
 
 /*
@@ -3956,7 +3944,7 @@ static int do_journal_end(struct reiserfs_transaction_handle *th,
 	 ** it tells us if we should continue with the journal_end, or just return
 	 */
 	if (!check_journal_end(th, sb, nblocks, flags)) {
-		sb->s_dirt = 1;
+		reiserfs_schedule_old_flush(sb);
 		wake_queued_writers(sb);
 		reiserfs_async_progress_wait(sb);
 		goto out;

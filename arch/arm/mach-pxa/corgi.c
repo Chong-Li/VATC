@@ -40,15 +40,14 @@
 #include <asm/mach-types.h>
 #include <mach/hardware.h>
 #include <asm/irq.h>
-#include <asm/system.h>
 
 #include <asm/mach/arch.h>
 #include <asm/mach/map.h>
 #include <asm/mach/irq.h>
 
 #include <mach/pxa25x.h>
-#include <mach/irda.h>
-#include <mach/mmc.h>
+#include <linux/platform_data/irda-pxaficp.h>
+#include <linux/platform_data/mmc-pxamci.h>
 #include <mach/udc.h>
 #include <mach/corgi.h>
 #include <mach/sharpsl_pm.h>
@@ -730,10 +729,11 @@ static void __init fixup_corgi(struct tag *tags, char **cmdline,
 MACHINE_START(CORGI, "SHARP Corgi")
 	.fixup		= fixup_corgi,
 	.map_io		= pxa25x_map_io,
+	.nr_irqs	= PXA_NR_IRQS,
 	.init_irq	= pxa25x_init_irq,
 	.handle_irq	= pxa25x_handle_irq,
 	.init_machine	= corgi_init,
-	.timer		= &pxa_timer,
+	.init_time	= pxa_timer_init,
 	.restart	= corgi_restart,
 MACHINE_END
 #endif
@@ -742,10 +742,11 @@ MACHINE_END
 MACHINE_START(SHEPHERD, "SHARP Shepherd")
 	.fixup		= fixup_corgi,
 	.map_io		= pxa25x_map_io,
+	.nr_irqs	= PXA_NR_IRQS,
 	.init_irq	= pxa25x_init_irq,
 	.handle_irq	= pxa25x_handle_irq,
 	.init_machine	= corgi_init,
-	.timer		= &pxa_timer,
+	.init_time	= pxa_timer_init,
 	.restart	= corgi_restart,
 MACHINE_END
 #endif
@@ -754,10 +755,11 @@ MACHINE_END
 MACHINE_START(HUSKY, "SHARP Husky")
 	.fixup		= fixup_corgi,
 	.map_io		= pxa25x_map_io,
+	.nr_irqs	= PXA_NR_IRQS,
 	.init_irq	= pxa25x_init_irq,
 	.handle_irq	= pxa25x_handle_irq,
 	.init_machine	= corgi_init,
-	.timer		= &pxa_timer,
+	.init_time	= pxa_timer_init,
 	.restart	= corgi_restart,
 MACHINE_END
 #endif

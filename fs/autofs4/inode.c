@@ -36,8 +36,8 @@ struct autofs_info *autofs4_new_ino(struct autofs_sb_info *sbi)
 
 void autofs4_clean_ino(struct autofs_info *ino)
 {
-	ino->uid = 0;
-	ino->gid = 0;
+	ino->uid = GLOBAL_ROOT_UID;
+	ino->gid = GLOBAL_ROOT_GID;
 	ino->last_used = jiffies;
 }
 
@@ -79,10 +79,12 @@ static int autofs4_show_options(struct seq_file *m, struct dentry *root)
 		return 0;
 
 	seq_printf(m, ",fd=%d", sbi->pipefd);
-	if (root_inode->i_uid != 0)
-		seq_printf(m, ",uid=%u", root_inode->i_uid);
-	if (root_inode->i_gid != 0)
-		seq_printf(m, ",gid=%u", root_inode->i_gid);
+	if (!uid_eq(root_inode->i_uid, GLOBAL_ROOT_UID))
+		seq_printf(m, ",uid=%u",
+			from_kuid_munged(&init_user_ns, root_inode->i_uid));
+	if (!gid_eq(root_inode->i_gid, GLOBAL_ROOT_GID))
+		seq_printf(m, ",gid=%u",
+			from_kgid_munged(&init_user_ns, root_inode->i_gid));
 	seq_printf(m, ",pgrp=%d", sbi->oz_pgrp);
 	seq_printf(m, ",timeout=%lu", sbi->exp_timeout/HZ);
 	seq_printf(m, ",minproto=%d", sbi->min_proto);
@@ -100,7 +102,7 @@ static int autofs4_show_options(struct seq_file *m, struct dentry *root)
 
 static void autofs4_evict_inode(struct inode *inode)
 {
-	end_writeback(inode);
+	clear_inode(inode);
 	kfree(inode->i_private);
 }
 
@@ -126,7 +128,7 @@ static const match_table_t tokens = {
 	{Opt_err, NULL}
 };
 
-static int parse_options(char *options, int *pipefd, uid_t *uid, gid_t *gid,
+static int parse_options(char *options, int *pipefd, kuid_t *uid, kgid_t *gid,
 		pid_t *pgrp, unsigned int *type, int *minproto, int *maxproto)
 {
 	char *p;
@@ -159,12 +161,16 @@ static int parse_options(char *options, int *pipefd, uid_t *uid, gid_t *gid,
 		case Opt_uid:
 			if (match_int(args, &option))
 				return 1;
-			*uid = option;
+			*uid = make_kuid(current_user_ns(), option);
+			if (!uid_valid(*uid))
+				return 1;
 			break;
 		case Opt_gid:
 			if (match_int(args, &option))
 				return 1;
-			*gid = option;
+			*gid = make_kgid(current_user_ns(), option);
+			if (!gid_valid(*gid))
+				return 1;
 			break;
 		case Opt_pgrp:
 			if (match_int(args, &option))
@@ -245,12 +251,9 @@ int autofs4_fill_super(struct super_block *s, void *data, int silent)
 	if (!ino)
 		goto fail_free;
 	root_inode = autofs4_get_inode(s, S_IFDIR | 0755);
-	if (!root_inode)
-		goto fail_ino;
-
-	root = d_alloc_root(root_inode);
+	root = d_make_root(root_inode);
 	if (!root)
-		goto fail_iput;
+		goto fail_ino;
 	pipe = NULL;
 
 	root->d_fsdata = ino;
@@ -315,9 +318,6 @@ fail_fput:
 fail_dput:
 	dput(root);
 	goto fail_free;
-fail_iput:
-	printk("autofs: get root dentry failed\n");
-	iput(root_inode);
 fail_ino:
 	kfree(ino);
 fail_free:

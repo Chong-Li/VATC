@@ -77,7 +77,7 @@ static u32 psb_intel_lvds_get_max_backlight(struct drm_device *dev)
 		ret = REG_READ(BLC_PWM_CTL);
 		gma_power_end(dev);
 	} else /* Powered off, use the saved value */
-		ret = dev_priv->saveBLC_PWM_CTL;
+		ret = dev_priv->regs.saveBLC_PWM_CTL;
 
 	/* Top 15bits hold the frequency mask */
 	ret = (ret &  BACKLIGHT_MODULATION_FREQ_MASK) >>
@@ -86,7 +86,7 @@ static u32 psb_intel_lvds_get_max_backlight(struct drm_device *dev)
         ret *= 2;	/* Return a 16bit range as needed for setting */
         if (ret == 0)
                 dev_err(dev->dev, "BL bug: Reg %08x save %08X\n",
-                        REG_READ(BLC_PWM_CTL), dev_priv->saveBLC_PWM_CTL);
+                        REG_READ(BLC_PWM_CTL), dev_priv->regs.saveBLC_PWM_CTL);
 	return ret;
 }
 
@@ -203,13 +203,13 @@ static void psb_intel_lvds_set_backlight(struct drm_device *dev, int level)
 		REG_WRITE(BLC_PWM_CTL,
 				(blc_pwm_ctl |
 				(level << BACKLIGHT_DUTY_CYCLE_SHIFT)));
-		dev_priv->saveBLC_PWM_CTL = (blc_pwm_ctl |
+		dev_priv->regs.saveBLC_PWM_CTL = (blc_pwm_ctl |
 					(level << BACKLIGHT_DUTY_CYCLE_SHIFT));
 		gma_power_end(dev);
 	} else {
-		blc_pwm_ctl = dev_priv->saveBLC_PWM_CTL &
+		blc_pwm_ctl = dev_priv->regs.saveBLC_PWM_CTL &
 				~BACKLIGHT_DUTY_CYCLE_MASK;
-		dev_priv->saveBLC_PWM_CTL = (blc_pwm_ctl |
+		dev_priv->regs.saveBLC_PWM_CTL = (blc_pwm_ctl |
 					(level << BACKLIGHT_DUTY_CYCLE_SHIFT));
 	}
 }
@@ -283,7 +283,7 @@ static void psb_intel_lvds_save(struct drm_connector *connector)
 	lvds_priv->savePFIT_PGM_RATIOS = REG_READ(PFIT_PGM_RATIOS);
 
 	/*TODO: move backlight_duty_cycle to psb_intel_lvds_priv*/
-	dev_priv->backlight_duty_cycle = (dev_priv->saveBLC_PWM_CTL &
+	dev_priv->backlight_duty_cycle = (dev_priv->regs.saveBLC_PWM_CTL &
 						BACKLIGHT_DUTY_CYCLE_MASK);
 
 	/*
@@ -375,7 +375,7 @@ int psb_intel_lvds_mode_valid(struct drm_connector *connector,
 }
 
 bool psb_intel_lvds_mode_fixup(struct drm_encoder *encoder,
-				  struct drm_display_mode *mode,
+				  const struct drm_display_mode *mode,
 				  struct drm_display_mode *adjusted_mode)
 {
 	struct drm_device *dev = encoder->dev;
@@ -603,7 +603,7 @@ int psb_intel_lvds_set_property(struct drm_connector *connector,
 			goto set_prop_error;
 		}
 
-		if (drm_connector_property_get_value(connector,
+		if (drm_object_property_get_value(&connector->base,
 						     property,
 						     &curval))
 			goto set_prop_error;
@@ -611,7 +611,7 @@ int psb_intel_lvds_set_property(struct drm_connector *connector,
 		if (curval == value)
 			goto set_prop_done;
 
-		if (drm_connector_property_set_value(connector,
+		if (drm_object_property_set_value(&connector->base,
 							property,
 							value))
 			goto set_prop_error;
@@ -626,21 +626,12 @@ int psb_intel_lvds_set_property(struct drm_connector *connector,
 				goto set_prop_error;
 		}
 	} else if (!strcmp(property->name, "backlight")) {
-		if (drm_connector_property_set_value(connector,
+		if (drm_object_property_set_value(&connector->base,
 							property,
 							value))
 			goto set_prop_error;
-		else {
-#ifdef CONFIG_BACKLIGHT_CLASS_DEVICE
-			struct drm_psb_private *devp =
-						encoder->dev->dev_private;
-			struct backlight_device *bd = devp->backlight_device;
-			if (bd) {
-				bd->props.brightness = value;
-				backlight_update_status(bd);
-			}
-#endif
-		}
+		else
+                        gma_backlight_set(encoder->dev, value);
 	} else if (!strcmp(property->name, "DPMS")) {
 		struct drm_encoder_helper_funcs *hfuncs
 						= encoder->helper_private;
@@ -713,7 +704,6 @@ void psb_intel_lvds_init(struct drm_device *dev,
 
 	psb_intel_encoder =
 			kzalloc(sizeof(struct psb_intel_encoder), GFP_KERNEL);
-
 	if (!psb_intel_encoder) {
 		dev_err(dev->dev, "psb_intel_encoder allocation error\n");
 		return;
@@ -721,10 +711,9 @@ void psb_intel_lvds_init(struct drm_device *dev,
 
 	psb_intel_connector =
 		kzalloc(sizeof(struct psb_intel_connector), GFP_KERNEL);
-
 	if (!psb_intel_connector) {
-		kfree(psb_intel_encoder);
 		dev_err(dev->dev, "psb_intel_connector allocation error\n");
+		goto failed_encoder;
 	}
 
 	lvds_priv = kzalloc(sizeof(struct psb_intel_lvds_priv), GFP_KERNEL);
@@ -757,10 +746,10 @@ void psb_intel_lvds_init(struct drm_device *dev,
 	connector->doublescan_allowed = false;
 
 	/*Attach connector properties*/
-	drm_connector_attach_property(connector,
+	drm_object_attach_property(&connector->base,
 				      dev->mode_config.scaling_mode_property,
 				      DRM_MODE_SCALE_FULLSCREEN);
-	drm_connector_attach_property(connector,
+	drm_object_attach_property(&connector->base,
 				      dev_priv->backlight_property,
 				      BRIGHTNESS_MAX_LEVEL);
 
@@ -862,7 +851,8 @@ failed_blc_i2c:
 	drm_encoder_cleanup(encoder);
 	drm_connector_cleanup(connector);
 failed_connector:
-	if (psb_intel_connector)
-		kfree(psb_intel_connector);
+	kfree(psb_intel_connector);
+failed_encoder:
+	kfree(psb_intel_encoder);
 }
 

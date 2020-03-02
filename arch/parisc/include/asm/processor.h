@@ -16,12 +16,8 @@
 #include <asm/pdc.h>
 #include <asm/ptrace.h>
 #include <asm/types.h>
-#include <asm/system.h>
 #include <asm/percpu.h>
-
 #endif /* __ASSEMBLY__ */
-
-#define KERNEL_STACK_SIZE 	(4*PAGE_SIZE)
 
 /*
  * Default implementation of macro that returns current
@@ -98,7 +94,6 @@ struct cpuinfo_parisc {
 	unsigned long txn_addr;     /* MMIO addr of EIR or id_eid */
 #ifdef CONFIG_SMP
 	unsigned long pending_ipi;  /* bitmap of type ipi_message_type */
-	unsigned long ipi_count;    /* number ipi Interrupts */
 #endif
 	unsigned long bh_count;     /* number of times bh was invoked */
 	unsigned long prof_counter; /* per CPU profiling support */
@@ -169,6 +164,7 @@ struct thread_struct {
  * Return saved PC of a blocked thread.  This is used by ps mostly.
  */
 
+struct task_struct;
 unsigned long thread_saved_pc(struct task_struct *t);
 void show_trace(struct task_struct *task, unsigned long *stack);
 
@@ -326,10 +322,6 @@ struct mm_struct;
 
 /* Free all resources held by a thread. */
 extern void release_thread(struct task_struct *);
-extern int kernel_thread(int (*fn)(void *), void * arg, unsigned long flags);
-
-/* Prepare to copy thread state - unlazy all lazy status */
-#define prepare_to_copy(tsk)	do { } while (0)
 
 extern void map_hpux_gateway_page(struct task_struct *tsk, struct mm_struct *mm);
 

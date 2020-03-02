@@ -29,10 +29,9 @@
 #include <linux/module.h>
 #include <linux/i2c.h>
 #include <linux/i2c-algo-bit.h>
-#include "drmP.h"
-#include "drm.h"
+#include <drm/drmP.h>
 #include "psb_intel_drv.h"
-#include "gma_drm.h"
+#include <drm/gma_drm.h>
 #include "psb_drv.h"
 #include "psb_intel_reg.h"
 
@@ -395,7 +394,7 @@ int gma_intel_setup_gmbus(struct drm_device *dev)
 	struct drm_psb_private *dev_priv = dev->dev_private;
 	int ret, i;
 
-	dev_priv->gmbus = kcalloc(sizeof(struct intel_gmbus), GMBUS_NUM_PORTS,
+	dev_priv->gmbus = kcalloc(GMBUS_NUM_PORTS, sizeof(struct intel_gmbus),
 				  GFP_KERNEL);
 	if (dev_priv->gmbus == NULL)
 		return -ENOMEM;

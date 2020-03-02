@@ -13,6 +13,7 @@
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/rtc.h>
+#include <linux/of.h>
 #include <linux/of_device.h>
 #include <linux/of_platform.h>
 #include <linux/io.h>
@@ -306,7 +307,7 @@ static const struct rtc_class_ops mpc5200_rtc_ops = {
 	.alarm_irq_enable = mpc5121_rtc_alarm_irq_enable,
 };
 
-static int __devinit mpc5121_rtc_probe(struct platform_device *op)
+static int mpc5121_rtc_probe(struct platform_device *op)
 {
 	struct mpc5121_rtc_data *rtc;
 	int err = 0;
@@ -327,7 +328,7 @@ static int __devinit mpc5121_rtc_probe(struct platform_device *op)
 	dev_set_drvdata(&op->dev, rtc);
 
 	rtc->irq = irq_of_parse_and_map(op->dev.of_node, 1);
-	err = request_irq(rtc->irq, mpc5121_rtc_handler, IRQF_DISABLED,
+	err = request_irq(rtc->irq, mpc5121_rtc_handler, 0,
 						"mpc5121-rtc", &op->dev);
 	if (err) {
 		dev_err(&op->dev, "%s: could not request irq: %i\n",
@@ -337,7 +338,7 @@ static int __devinit mpc5121_rtc_probe(struct platform_device *op)
 
 	rtc->irq_periodic = irq_of_parse_and_map(op->dev.of_node, 0);
 	err = request_irq(rtc->irq_periodic, mpc5121_rtc_handler_upd,
-				IRQF_DISABLED, "mpc5121-rtc_upd", &op->dev);
+				0, "mpc5121-rtc_upd", &op->dev);
 	if (err) {
 		dev_err(&op->dev, "%s: could not request irq: %i\n",
 						__func__, rtc->irq_periodic);
@@ -360,12 +361,11 @@ static int __devinit mpc5121_rtc_probe(struct platform_device *op)
 						&mpc5200_rtc_ops, THIS_MODULE);
 	}
 
-	rtc->rtc->uie_unsupported = 1;
-
 	if (IS_ERR(rtc->rtc)) {
 		err = PTR_ERR(rtc->rtc);
 		goto out_free_irq;
 	}
+	rtc->rtc->uie_unsupported = 1;
 
 	return 0;
 
@@ -383,7 +383,7 @@ out_free:
 	return err;
 }
 
-static int __devexit mpc5121_rtc_remove(struct platform_device *op)
+static int mpc5121_rtc_remove(struct platform_device *op)
 {
 	struct mpc5121_rtc_data *rtc = dev_get_drvdata(&op->dev);
 	struct mpc5121_rtc_regs __iomem *regs = rtc->regs;
@@ -404,20 +404,22 @@ static int __devexit mpc5121_rtc_remove(struct platform_device *op)
 	return 0;
 }
 
-static struct of_device_id mpc5121_rtc_match[] __devinitdata = {
+#ifdef CONFIG_OF
+static struct of_device_id mpc5121_rtc_match[] = {
 	{ .compatible = "fsl,mpc5121-rtc", },
 	{ .compatible = "fsl,mpc5200-rtc", },
 	{},
 };
+#endif
 
 static struct platform_driver mpc5121_rtc_driver = {
 	.driver = {
 		.name = "mpc5121-rtc",
 		.owner = THIS_MODULE,
-		.of_match_table = mpc5121_rtc_match,
+		.of_match_table = of_match_ptr(mpc5121_rtc_match),
 	},
 	.probe = mpc5121_rtc_probe,
-	.remove = __devexit_p(mpc5121_rtc_remove),
+	.remove = mpc5121_rtc_remove,
 };
 
 module_platform_driver(mpc5121_rtc_driver);

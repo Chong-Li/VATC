@@ -33,10 +33,11 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "drmP.h"
-#include "drm_core.h"
+#include <drm/drmP.h>
+#include <drm/drm_core.h>
 
-#include "linux/pci.h"
+#include <linux/pci.h>
+#include <linux/export.h>
 
 /**
  * Get the bus id.
@@ -214,8 +215,8 @@ int drm_getclient(struct drm_device *dev, void *data,
 	list_for_each_entry(pt, &dev->filelist, lhead) {
 		if (i++ >= idx) {
 			client->auth = pt->authenticated;
-			client->pid = pt->pid;
-			client->uid = pt->uid;
+			client->pid = pid_vnr(pt->pid);
+			client->uid = from_kuid_munged(current_user_ns(), pt->uid);
 			client->magic = pt->magic;
 			client->iocs = pt->ioctl_count;
 			mutex_unlock(&dev->struct_mutex);
@@ -275,6 +276,19 @@ int drm_getcap(struct drm_device *dev, void *data, struct drm_file *file_priv)
 		break;
 	case DRM_CAP_VBLANK_HIGH_CRTC:
 		req->value = 1;
+		break;
+	case DRM_CAP_DUMB_PREFERRED_DEPTH:
+		req->value = dev->mode_config.preferred_depth;
+		break;
+	case DRM_CAP_DUMB_PREFER_SHADOW:
+		req->value = dev->mode_config.prefer_shadow;
+		break;
+	case DRM_CAP_PRIME:
+		req->value |= dev->driver->prime_fd_to_handle ? DRM_PRIME_CAP_IMPORT : 0;
+		req->value |= dev->driver->prime_handle_to_fd ? DRM_PRIME_CAP_EXPORT : 0;
+		break;
+	case DRM_CAP_TIMESTAMP_MONOTONIC:
+		req->value = drm_timestamp_monotonic;
 		break;
 	default:
 		return -EINVAL;
@@ -346,3 +360,4 @@ int drm_noop(struct drm_device *dev, void *data,
 	DRM_DEBUG("\n");
 	return 0;
 }
+EXPORT_SYMBOL(drm_noop);

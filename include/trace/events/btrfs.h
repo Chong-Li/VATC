@@ -6,6 +6,7 @@
 
 #include <linux/writeback.h>
 #include <linux/tracepoint.h>
+#include <trace/events/gfpflags.h>
 
 struct btrfs_root;
 struct btrfs_fs_info;
@@ -44,7 +45,8 @@ struct extent_buffer;
 
 #define show_root_type(obj)						\
 	obj, ((obj >= BTRFS_DATA_RELOC_TREE_OBJECTID) ||		\
-	      (obj <= BTRFS_CSUM_TREE_OBJECTID )) ? __show_root_type(obj) : "-"
+	      (obj >= BTRFS_ROOT_TREE_OBJECTID &&			\
+	       obj <= BTRFS_CSUM_TREE_OBJECTID)) ? __show_root_type(obj) : "-"
 
 #define BTRFS_GROUP_FLAGS	\
 	{ BTRFS_BLOCK_GROUP_DATA,	"DATA"}, \
@@ -444,6 +446,7 @@ TRACE_EVENT(btrfs_delayed_tree_ref,
 		__field(	u64,  ref_root		)
 		__field(	int,  level		)
 		__field(	int,  type		)
+		__field(	u64,  seq		)
 	),
 
 	TP_fast_assign(
@@ -454,17 +457,19 @@ TRACE_EVENT(btrfs_delayed_tree_ref,
 		__entry->ref_root	= full_ref->root;
 		__entry->level		= full_ref->level;
 		__entry->type		= ref->type;
+		__entry->seq		= ref->seq;
 	),
 
 	TP_printk("bytenr = %llu, num_bytes = %llu, action = %s, "
 		  "parent = %llu(%s), ref_root = %llu(%s), level = %d, "
-		  "type = %s",
+		  "type = %s, seq = %llu",
 		  (unsigned long long)__entry->bytenr,
 		  (unsigned long long)__entry->num_bytes,
 		  show_ref_action(__entry->action),
 		  show_root_type(__entry->parent),
 		  show_root_type(__entry->ref_root),
-		  __entry->level, show_ref_type(__entry->type))
+		  __entry->level, show_ref_type(__entry->type),
+		  (unsigned long long)__entry->seq)
 );
 
 TRACE_EVENT(btrfs_delayed_data_ref,
@@ -484,6 +489,7 @@ TRACE_EVENT(btrfs_delayed_data_ref,
 		__field(	u64,  owner		)
 		__field(	u64,  offset		)
 		__field(	int,  type		)
+		__field(	u64,  seq		)
 	),
 
 	TP_fast_assign(
@@ -495,11 +501,12 @@ TRACE_EVENT(btrfs_delayed_data_ref,
 		__entry->owner		= full_ref->objectid;
 		__entry->offset		= full_ref->offset;
 		__entry->type		= ref->type;
+		__entry->seq		= ref->seq;
 	),
 
 	TP_printk("bytenr = %llu, num_bytes = %llu, action = %s, "
 		  "parent = %llu(%s), ref_root = %llu(%s), owner = %llu, "
-		  "offset = %llu, type = %s",
+		  "offset = %llu, type = %s, seq = %llu",
 		  (unsigned long long)__entry->bytenr,
 		  (unsigned long long)__entry->num_bytes,
 		  show_ref_action(__entry->action),
@@ -507,7 +514,8 @@ TRACE_EVENT(btrfs_delayed_data_ref,
 		  show_root_type(__entry->ref_root),
 		  (unsigned long long)__entry->owner,
 		  (unsigned long long)__entry->offset,
-		  show_ref_type(__entry->type))
+		  show_ref_type(__entry->type),
+		  (unsigned long long)__entry->seq)
 );
 
 TRACE_EVENT(btrfs_delayed_ref_head,
@@ -860,6 +868,49 @@ TRACE_EVENT(btrfs_setup_cluster,
 		  __print_flags((unsigned long)__entry->flags, "|",
 				BTRFS_GROUP_FLAGS), __entry->start,
 		  __entry->size, __entry->max_size, __entry->bitmap)
+);
+
+struct extent_state;
+TRACE_EVENT(alloc_extent_state,
+
+	TP_PROTO(struct extent_state *state, gfp_t mask, unsigned long IP),
+
+	TP_ARGS(state, mask, IP),
+
+	TP_STRUCT__entry(
+		__field(struct extent_state *, state)
+		__field(gfp_t, mask)
+		__field(unsigned long, ip)
+	),
+
+	TP_fast_assign(
+		__entry->state	= state,
+		__entry->mask	= mask,
+		__entry->ip	= IP
+	),
+
+	TP_printk("state=%p; mask = %s; caller = %pF", __entry->state,
+		  show_gfp_flags(__entry->mask), (void *)__entry->ip)
+);
+
+TRACE_EVENT(free_extent_state,
+
+	TP_PROTO(struct extent_state *state, unsigned long IP),
+
+	TP_ARGS(state, IP),
+
+	TP_STRUCT__entry(
+		__field(struct extent_state *, state)
+		__field(unsigned long, ip)
+	),
+
+	TP_fast_assign(
+		__entry->state	= state,
+		__entry->ip = IP
+	),
+
+	TP_printk(" state=%p; caller = %pF", __entry->state,
+		  (void *)__entry->ip)
 );
 
 #endif /* _TRACE_BTRFS_H */
