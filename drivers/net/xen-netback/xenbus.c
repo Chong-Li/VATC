@@ -505,20 +505,20 @@ static const struct xenbus_device_id netback_ids[] = {
 };
 
 
-/*static DEFINE_XENBUS_DRIVER(netback, ,
+static DEFINE_XENBUS_DRIVER(netback, ,
 	.probe = netback_probe,
 	.remove = netback_remove,
 	.uevent = netback_uevent,
 	.otherend_changed = frontend_changed,
-);*/
+);
 
-static struct xenbus_driver netback_driver = {
+/*static struct xenbus_driver netback_driver = {
 	.ids = netback_ids,
 	.probe = netback_probe,
 	.remove = netback_remove,
 	.uevent = netback_uevent,
 	.otherend_changed = frontend_changed,
-};
+};*/
 
 
 
