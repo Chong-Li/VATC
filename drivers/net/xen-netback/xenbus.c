@@ -403,6 +403,8 @@ static void connect(struct backend_info *be)
 	xen_net_read_rate(dev, &be->vif->credit_bytes,
 			  &be->vif->credit_usec);
 	be->vif->remaining_credit = be->vif->credit_bytes;
+	
+	printk("~~~~~~VATC: credit_bytes=%d, credit_usec=%d\n", be->vif->credit_bytes, be->vif->credit_usec);
 
 	unregister_hotplug_status_watch(be);
 	err = xenbus_watch_pathfmt(dev, &be->hotplug_status_watch,
