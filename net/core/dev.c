@@ -2641,9 +2641,17 @@ gso:
 				goto out_kfree_gso_skb;
 			nskb->next = skb->next;
 			skb->next = nskb;
+			/*VATC*/
+			if((BQL_flag==0 ||DQL_flag==0)&&skb->next){
+				return 110;
+			}
 			return rc;
 		}
 		txq_trans_update(txq);
+		/*VATC*/
+		if((BQL_flag==0 ||DQL_flag==0)&&skb->next){
+			return 110;
+		}
 		if (unlikely(netif_xmit_stopped(txq) && skb->next))
 			return NETDEV_TX_BUSY;
 	} while (skb->next);
@@ -2659,6 +2667,8 @@ out_kfree_skb:
 out:
 	return rc;
 }
+EXPORT_SYMBOL(dev_hard_start_xmit);
+
 
 static void qdisc_pkt_len_init(struct sk_buff *skb)
 {
@@ -2838,10 +2848,10 @@ int dev_queue_xmit(struct sk_buff *skb)
 		qdisc_skb_cb(skb)->pkt_len = skb->len;
 		//skb=dev_hard_start_xmit(skb,dev,txq,&rc);
 		rc=dev_hard_start_xmit(skb,dev,txq);
-		if((BQL_flag==0 ||DQL_flag==0)&&skb){
+		/*if((BQL_flag==0 ||DQL_flag==0)&&skb){
 			rcu_read_unlock_bh();
 			return 110;
-		}
+		}*/
 		rcu_read_unlock_bh();
 		return rc;
 #endif
