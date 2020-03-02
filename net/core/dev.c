@@ -2928,7 +2928,7 @@ static inline void ____napi_schedule(struct softnet_data *sd,
 				     struct napi_struct *napi)
 {
 	/*VATC*/
-	/*if (napi->dev != NULL){
+	if (napi->dev != NULL){
 		if (!memcmp(napi->dev->name, NIC_name, NIC_name_len)){
 			//printk("~~~~~~~~~~~~~~~ napi_sched: %s\n",napi->dev->name);
 			//if (list_empty(&napi->kthread_list)){
@@ -2936,12 +2936,12 @@ static inline void ____napi_schedule(struct softnet_data *sd,
 				//printk("~~~~ add to kthread_list\n");
 			//}
 				net_recv_flag = 1;
-				//if(!list_empty(&(net_recv_wq.task_list))){
+				if(!list_empty(&(net_recv_wq.task_list))){
 					wake_up(&net_recv_wq);
-				//}
+				}
 			return;
 		}
-	}*/
+	}
 	//printk("~~~!!!!!~~~VATC: napi_sched: %s\n",napi->dev->name);
 
 	list_add_tail(&napi->poll_list, &sd->poll_list);
@@ -4189,11 +4189,11 @@ void __napi_complete(struct napi_struct *n)
 	BUG_ON(n->gro_list);
 
 	/*VATC*/
-	//if (!memcmp(n->dev->name, NIC_name, NIC_name_len)){
-		//list_del(&n->kthread_list);
-	//} else {
+	if (!memcmp(n->dev->name, NIC_name, NIC_name_len)){
+		list_del(&n->kthread_list);
+	} else {
 		list_del(&n->poll_list);
-	//}
+	}
 
 	smp_mb__before_clear_bit();
 	clear_bit(NAPI_STATE_SCHED, &n->state);
