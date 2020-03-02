@@ -920,7 +920,7 @@ static void tx_credit_callback(unsigned long data)
 static void tx_token_callback(unsigned long data)
 {
 	struct xenvif *vif = (struct xenvif *)data;
-	printk("tx_token_callback~~~~\n");
+	//printk("tx_token_callback~~~~\n");
 	xen_netbk_check_rx_xenvif(vif);
 }
 
@@ -1299,7 +1299,7 @@ static bool tx_credit_exceeded(struct xenvif *vif, unsigned size)
 /*VATC*/
 static bool tx_token_exceeded(struct xenvif *vif, unsigned size)
 {
-	if (timer_pending(&vif->credit_timeout))
+	if (timer_pending(&vif->token_timeout))
 		return true;
 	
 	unsigned long now = jiffies;
@@ -1385,13 +1385,13 @@ static unsigned xen_netbk_tx_build_gops(struct xen_netbk *netbk)
 		vif->remaining_credit -= txreq.size;
 
 		/*VATC*/
-		/*if (tx_token_exceeded(vif, txreq.size)) {
+		if (tx_token_exceeded(vif, txreq.size)) {
 			xenvif_put(vif);
-			printk("lack tokens~~~~\n");
+			//printk("lack tokens~~~~\n");
 			continue;
 		}
 		//vif->tokens -= txreq.size;
-		vif->remaining_credit -= txreq.size;*/
+		vif->remaining_credit -= txreq.size;
 
 				
 
