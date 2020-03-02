@@ -339,6 +339,14 @@ struct xenvif *xenvif_alloc(struct device *parent, domid_t domid,
 		sd->dev_queue[dev->domid-1]=dev;
 		local_irq_restore(flags);
 		skb_queue_head_init(&vif->rx_queue_backup);
+
+		/*VATC*/
+		vif->rate = 30; //bytes per milli-second
+		vif->burst  = 3000;
+		vif->tokens = 3000;
+		
+		vif->last_fill = jiffies;
+		init_timer(&vif->token_timeout);
 next:
 		printk("interface.c: %s, dom: %d, priority: %d\n", __func__, dev->domid, dev->priority);
 

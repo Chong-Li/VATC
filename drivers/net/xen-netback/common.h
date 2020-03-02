@@ -93,6 +93,13 @@ struct xenvif {
 	unsigned long   remaining_credit;
 	struct timer_list credit_timeout;
 
+	/*VATC*/
+	unsigned long rate;
+	unsigned long burst;
+	unsigned long tokens;
+	unsigned long last_fill;
+	struct timer_list token_timeout;
+
 	/* Statistics */
 	unsigned long rx_gso_checksum_fixup;
 
