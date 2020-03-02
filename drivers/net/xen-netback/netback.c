@@ -452,6 +452,10 @@ static void netbk_gop_frag_copy(struct xenvif *vif, struct sk_buff *skb,
 
 	meta = npo->meta + npo->meta_prod - 1;
 
+	/* Skip unused frames from start of page */
+	page += offset >> PAGE_SHIFT;
+	offset &= ~PAGE_MASK;
+
 	while (size > 0) {
 		BUG_ON(offset >= PAGE_SIZE);
 		BUG_ON(npo->copy_off > MAX_BUFFER_OFFSET);
