@@ -4293,7 +4293,7 @@ static int net_recv_kthread(void *data){
 			if (test_bit(NAPI_STATE_SCHED, &n->state)) {
 				work = n->poll(n, weight);
 			}
-			printk("in net_recv_kthread: work=%d ~~~ poll=%pF\n", work, n->poll);
+			//printk("in net_recv_kthread: work=%d ~~~ poll=%pF\n", work, n->poll);
 			local_irq_disable();
 	
 			if (unlikely(work == weight)) {
