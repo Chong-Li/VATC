@@ -1783,11 +1783,12 @@ static int rtca_netbk_kthread(void *data)
 			}
 			xen_netbk_rx_action(netbk);
 		}
-		/*if(netbk->gso_skb && (BQL_flag==1) && (DQL_flag==1)){
+		if(netbk->gso_skb && (BQL_flag==1) && (DQL_flag==1)){
 				netbk->gso_flag=0;
 				rcu_read_lock();
 				//rcu_read_lock_bh();
 				struct sk_buff *skb2=netbk->gso_skb;
+				skb2->dev=NIC_dev;
 				netbk->gso_skb=NULL;
 				int rc; 
 				//struct sk_buff* skb;
@@ -1802,8 +1803,8 @@ static int rtca_netbk_kthread(void *data)
 					continue;
 				}
 				
-		}*/
-		if(netbk->gso_skb && (BQL_flag==1) && (DQL_flag==1)){
+		}
+		/*if(netbk->gso_skb && (BQL_flag==1) && (DQL_flag==1)){
 				netbk->gso_flag=0;
 				rcu_read_lock();
 				rcu_read_lock_bh();
@@ -1822,7 +1823,7 @@ static int rtca_netbk_kthread(void *data)
 					continue;
 				}
 				
-		}
+		}*/
 		if ((tx_work_todo(netbk)||netbk->tx_queue.qlen>0)&&(BQL_flag==1)&&(DQL_flag==1)){
 			xen_netbk_tx_action(netbk);
 		}
