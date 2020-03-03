@@ -1305,7 +1305,11 @@ static bool tx_token_exceeded(struct xenvif *vif, unsigned size)
 	unsigned long now = jiffies;
 	if (time_after_eq(now, vif->last_fill)) {
 		unsigned int elapse = jiffies_to_msecs(now-vif->last_fill);
-		if (elapse > 1 || elapse == 1) {
+		if (size > vif->credit_usec) {
+			unsigned long toAdd = vif->credit_bytes *  elapse;
+			vif->remaining_credit= vif->remaining_credit + toAdd;
+			vif->last_fill = now;
+		} else if (elapse > 1 || elapse == 1) {
 			unsigned long toAdd = vif->credit_bytes *  elapse;
 			vif->remaining_credit= min(vif->remaining_credit + toAdd, vif->credit_usec);
 			vif->last_fill = now;
