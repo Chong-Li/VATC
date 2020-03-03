@@ -395,6 +395,11 @@ static void connect(struct backend_info *be)
 		return;
 
 	err = xen_net_read_mac(dev, be->vif->fe_dev_addr);
+	/*VATC*/
+	printk("~~~VATC: mac[0]=%c\n", be->vif->fe_dev_addr[0]);
+	be->vif->priority=be->vif->fe_dev_addr[0]-'0';
+	printk("~~~~VATC: vif->prio=%d\n", be->vif->priority);
+	
 	if (err) {
 		xenbus_dev_fatal(dev, err, "parsing %s/mac", dev->nodename);
 		return;
