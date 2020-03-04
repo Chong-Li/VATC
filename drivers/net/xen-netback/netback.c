@@ -289,7 +289,9 @@ static void xen_netbk_kick_thread(struct xen_netbk *netbk)
 	//wake_up(&netbk->wq);
 	if(!list_empty(&((netbk->wq).task_list))){
 		wake_up(&netbk->wq);
-
+	}
+	if(!list_empty(&((netbk->tx_wq).task_list))){
+		wake_up(&netbk->tx_wq);
 	}
 
 	//if(netbk->priority==0)
@@ -1856,7 +1858,6 @@ static int rtca_netbk_kthread(void *data)
 			break;
 
 		if (rx_work_todo(netbk)){
-
 			xen_netbk_rx_action(netbk);
 		}
 		if(netbk->vif!=NULL&&netbk->vif->rx_queue_backup.qlen>0&&xenvif_rx_schedulable(netbk->vif)){
