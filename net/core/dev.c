@@ -3688,7 +3688,8 @@ int netif_receive_skb(struct sk_buff *skb)
 		return NET_RX_SUCCESS;
 
 	/*VATC*/
-	/*	struct ethhdr *eth_header=(struct ethhdr *)skb_mac_header(skb);
+	if (skb->dev == NIC_dev) {
+		struct ethhdr *eth_header=(struct ethhdr *)skb_mac_header(skb);
 		struct softnet_data *sd;
 		sd=&__get_cpu_var(softnet_data);
 		int i;
@@ -3713,8 +3714,8 @@ int netif_receive_skb(struct sk_buff *skb)
 				return ret;
 			}	
 		}
-	*/
-
+	}
+	
 
 #ifdef CONFIG_RPS
 	if (static_key_false(&rps_needed)) {
