@@ -95,8 +95,8 @@ static int netback_probe(struct xenbus_device *dev,
 		}
 		
 #ifdef NEW_XENBUS	
-		if(sd->dom_index>=5)
-			goto next;
+		//if(sd->dom_index>=5)
+			//goto next;
 		memcpy(temp,(u8*)xenbus_read(xbt,dev->nodename,"mac",NULL),17);
 		//printk("MAC is %s\n",temp);
 		int i,j;
@@ -225,6 +225,12 @@ static void backend_create_xenvif(struct backend_info *be)
 		xenbus_dev_fatal(dev, err, "creating interface");
 		return;
 	}
+	/*VATC*/
+	u8 mac[ETH_ALEN];
+	xen_net_read_mac(dev, mac);
+	printk("~~~VATC: mac[0]=%lu\n", mac[0]);
+	be->vif->priority=(int)mac[0];
+	printk("~~~~VATC: vif->prio=%d\n", be->vif->priority);
 
 	kobject_uevent(&dev->dev.kobj, KOBJ_ONLINE);
 }
@@ -395,10 +401,6 @@ static void connect(struct backend_info *be)
 		return;
 
 	err = xen_net_read_mac(dev, be->vif->fe_dev_addr);
-	/*VATC*/
-	printk("~~~VATC: mac[0]=%lu\n", be->vif->fe_dev_addr[0]);
-	be->vif->priority=(int)be->vif->fe_dev_addr[0];
-	printk("~~~~VATC: vif->prio=%d\n", be->vif->priority);
 	
 	if (err) {
 		xenbus_dev_fatal(dev, err, "parsing %s/mac", dev->nodename);
