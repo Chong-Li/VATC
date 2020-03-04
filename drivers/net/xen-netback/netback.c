@@ -807,7 +807,7 @@ void xen_netbk_queue_tx_skb(struct xenvif *vif, struct sk_buff *skb)
 	struct xen_netbk *netbk = vif->netbk;
 
 	skb_queue_tail(&netbk->rx_queue, skb);
-	printk("skb to rx_queue\n");
+	printk("skb to rx_queue, len=%d\n", skb->len);
 
 	xen_netbk_kick_thread(netbk);
 }
@@ -1518,6 +1518,7 @@ notb:
 		}
 
 		__skb_queue_tail(&netbk->tx_queue, skb);
+		printk("skb to tx_queue, len=%d\n", skb->len);
 
 		netbk->pending_cons++;
 
@@ -1656,10 +1657,14 @@ static void xen_netbk_tx_submit(struct xen_netbk *netbk)
 
 						skb->dev=sd->dev_queue[i];
 						skb_push(skb, ETH_HLEN);
+						int beforeLen= skb->len;
 						dev_queue_xmit(skb);
+						printk("submit one local skb, len=%d\n", beforeLen);
 				}
 				else{
+					int beforeLen=skb->len;
 					netif_receive_skb(skb);
+					printk("send one local arp, len=%d\n", beforeLen);
 				}
 			}
 			else{
@@ -1671,8 +1676,9 @@ static void xen_netbk_tx_submit(struct xen_netbk *netbk)
 						skb_reset_mac_len(skb);
 						skb->dev=NIC_dev;
 						skb_push(skb, ETH_HLEN);
+						int beforeLen= skb->len;
 						rc=dev_queue_xmit(skb);
-						printk("submit one skb, rc=%d\n", rc);
+						printk("submit one skb, len=%d, rc=%d\n", beforeLen, rc);
 						if(rc==110){
 							netbk->gso_skb=skb;
 							netbk->gso_flag=1;
@@ -1681,7 +1687,9 @@ static void xen_netbk_tx_submit(struct xen_netbk *netbk)
 						}
 				}
 				else{
+					int beforeLen=skb->len;
 					netif_receive_skb(skb);
+					printk("send one local arp, len=%d\n", beforeLen);
 				}
 			}
 

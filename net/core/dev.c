@@ -2944,7 +2944,7 @@ static inline void ____napi_schedule(struct softnet_data *sd,
 			//printk("~~~~~~~~~~~~~~~ napi_sched: %s\n",napi->dev->name);
 			//if (list_empty(&napi->kthread_list)){
 				list_add_tail(&napi->kthread_list, &sd->kthread_list);
-				//printk("~~~~ add to kthread_list\n");
+				printk("~~~~ add to kthread_list\n");
 			//}
 				net_recv_flag = 1;
 				if(!list_empty(&(net_recv_wq.task_list))){
@@ -4303,7 +4303,7 @@ static int net_recv_kthread(void *data){
 			if (test_bit(NAPI_STATE_SCHED, &n->state)) {
 				work = n->poll(n, weight);
 			}
-			//printk("in net_recv_kthread: work=%d ~~~ poll=%pF\n", work, n->poll);
+			printk("in net_recv_kthread: work=%d ~~~ poll=%pF\n", work, n->poll);
 			local_irq_disable();
 	
 			if (unlikely(work == weight)) {
