@@ -326,12 +326,13 @@ struct xenvif *xenvif_alloc(struct device *parent, domid_t domid,
 #ifdef NEW_INTERFACE
 
 		dev->domid=vif->domid;
-		if(dev->domid>6)
+		/*if(dev->domid>6)
 			dev->priority=5;
 		else
 			dev->priority=(dev->domid-1);
 		if(dev->domid>6)
-			goto next;
+			goto next;*/
+		dev->priority=vif->priority;
 
 		unsigned long flags;
 		struct softnet_data *sd;

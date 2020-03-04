@@ -156,7 +156,7 @@ void xen_netbk_add_xenvif(struct xenvif *vif)
 
 /*RTCA*/
 #ifdef NEW_NETBACK
-	/*if(vif->domid>5){
+	if(vif->domid>5){
 		netbk=&xen_netbk[5];
 		netbk->priority=5;
 	}
@@ -170,18 +170,14 @@ void xen_netbk_add_xenvif(struct xenvif *vif)
 		}
 	}
 	//if(vif->domid==1||vif->domid==2)
-		netbk->vif=NULL;*/
+		netbk->vif=NULL;
 
-	if(vif->priority >5){
+	/*if(vif->priority >5){
 		netbk=&xen_netbk[5];
-		netbk->priority=5;
-	}
-
-	else{
+	} else{
 		netbk=&xen_netbk[vif->priority];
-		netbk->priority=vif->priority;
 	}
-	netbk->vif=NULL;
+	netbk->vif=NULL;*/
 #endif
 	vif->netbk = netbk;
 	
@@ -1652,7 +1648,7 @@ static void xen_netbk_tx_submit(struct xen_netbk *netbk)
 			if(i<sd->dom_index){
 				if(eth_header->h_proto!=htons(ETH_P_ARP)){
 						memcpy(&(skb->cb[40]), "vif",3); //this is a packet coming from guest domain
-						skb->cb[43]=skb->dev->priority+'0';
+						skb->cb[43]=skb->dev->domid+'0';
 
 						skb->dev=sd->dev_queue[i];
 						skb_push(skb, ETH_HLEN);
@@ -1665,7 +1661,7 @@ static void xen_netbk_tx_submit(struct xen_netbk *netbk)
 			else{
 				if(eth_header->h_proto!=htons(ETH_P_ARP)){
 						memcpy(&(skb->cb[40]), "vif",3); //this is a packet coming from guest domain
-						skb->cb[43]=skb->dev->priority+'0';
+						skb->cb[43]=skb->dev->domid+'0';
 						skb_reset_network_header(skb);
 						skb_reset_transport_header(skb);
 						skb_reset_mac_len(skb);
