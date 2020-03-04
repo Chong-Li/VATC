@@ -129,11 +129,12 @@ void xenvif_receive_skb(struct xenvif *vif, struct sk_buff *skb)
 
 void xenvif_notify_tx_completion(struct xenvif *vif)
 {
-#ifdef NEW_INTERFACE
-	kick_rx_backup(vif);
-#endif 
-	if (netif_queue_stopped(vif->dev) && xenvif_rx_schedulable(vif))
+	if (netif_queue_stopped(vif->dev) && xenvif_rx_schedulable(vif)) {
 		netif_wake_queue(vif->dev);
+#ifdef NEW_INTERFACE
+		kick_rx_backup(vif);
+#endif 
+	}
 }
 
 static struct net_device_stats *xenvif_get_stats(struct net_device *dev)

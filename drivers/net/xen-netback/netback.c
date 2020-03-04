@@ -698,6 +698,7 @@ static void xen_netbk_rx_action(struct xen_netbk *netbk)
 		count += nr_frags + 1;
 
 		__skb_queue_tail(&rxq, skb);
+		printk("skb to rxq\n");
 
 		/* Filled the batch queue? */
 		if (count + MAX_SKB_FRAGS >= XEN_NETIF_RX_RING_SIZE)
@@ -779,6 +780,8 @@ static void xen_netbk_rx_action(struct xen_netbk *netbk)
 
 		xenvif_notify_tx_completion(vif);
 
+		printk("push to ring\n");
+
 		if (ret && list_empty(&vif->notify_list))
 			list_add_tail(&vif->notify_list, &notify);
 		else
@@ -804,6 +807,7 @@ void xen_netbk_queue_tx_skb(struct xenvif *vif, struct sk_buff *skb)
 	struct xen_netbk *netbk = vif->netbk;
 
 	skb_queue_tail(&netbk->rx_queue, skb);
+	printk("skb to rx_queue\n");
 
 	xen_netbk_kick_thread(netbk);
 }
@@ -1668,6 +1672,7 @@ static void xen_netbk_tx_submit(struct xen_netbk *netbk)
 						skb->dev=NIC_dev;
 						skb_push(skb, ETH_HLEN);
 						rc=dev_queue_xmit(skb);
+						printk("submit one skb, rc=%d\n", rc);
 						if(rc==110){
 							netbk->gso_skb=skb;
 							netbk->gso_flag=1;
