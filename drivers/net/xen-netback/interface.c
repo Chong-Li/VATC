@@ -325,8 +325,8 @@ struct xenvif *xenvif_alloc(struct device *parent, domid_t domid,
 /*RTCA*/
 #ifdef NEW_INTERFACE
 
-		dev->domid=vif->domid;
-		/*if(dev->domid>6)
+		/*dev->domid=vif->domid;
+		if(dev->domid>6)
 			dev->priority=5;
 		else
 			dev->priority=(dev->domid-1);
@@ -338,7 +338,7 @@ struct xenvif *xenvif_alloc(struct device *parent, domid_t domid,
 		struct softnet_data *sd;
 		sd=&__get_cpu_var(softnet_data);
 		local_irq_save(flags);
-		sd->dev_queue[dev->domid-1]=dev;
+		sd->dev_queue[sd->dom_index -1]=dev;
 		local_irq_restore(flags);
 		skb_queue_head_init(&vif->rx_queue_backup);
 
