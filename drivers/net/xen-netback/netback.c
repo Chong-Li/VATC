@@ -1391,25 +1391,26 @@ static unsigned xen_netbk_tx_build_gops(struct xen_netbk *netbk)
 		memcpy(&txreq, RING_GET_REQUEST(&vif->tx, idx), sizeof(txreq));
 
 		/* Credit-based scheduling. */
-		if (txreq.size > vif->remaining_credit &&
+		/*if (txreq.size > vif->remaining_credit &&
 		    tx_credit_exceeded(vif, txreq.size)) {
 			xenvif_put(vif);
 			continue;
 		}
 
-		vif->remaining_credit -= txreq.size;
+		vif->remaining_credit -= txreq.size;*/
 
 		/*VATC*/
+		if (vif->credit_usec == 0) {
+			goto notb;
+		}
 		if (tx_token_exceeded(vif, txreq.size)) {
 			xenvif_put(vif);
 			//printk("lack tokens~~~~\n");
 			continue;
 		}
-		//vif->tokens -= txreq.size;
 		vif->remaining_credit -= txreq.size;
-
+notb:
 				
-
 		work_to_do--;
 		vif->tx.req_cons = ++idx;
 
