@@ -238,20 +238,20 @@ static void backend_create_xenvif(struct backend_info *be)
 		xenbus_dev_fatal(dev, err, "reading handle");
 		return;
 	}
+	/*VATC*/
+	u8 mac[ETH_ALEN];
+	xen_net_read_mac(dev, mac);
+	printk("~~~VATC: mac[0]=%lu\n", mac[0]);
+	//be->vif->priority=(int)mac[0];
+	//printk("~~~~VATC: vif->prio=%d\n", be->vif->priority);
 
-	be->vif = xenvif_alloc(&dev->dev, dev->otherend_id, handle);
+	be->vif = xenvif_alloc(&dev->dev, dev->otherend_id, handle, (int)mac[0]);
 	if (IS_ERR(be->vif)) {
 		err = PTR_ERR(be->vif);
 		be->vif = NULL;
 		xenbus_dev_fatal(dev, err, "creating interface");
 		return;
 	}
-	/*VATC*/
-	u8 mac[ETH_ALEN];
-	xen_net_read_mac(dev, mac);
-	printk("~~~VATC: mac[0]=%lu\n", mac[0]);
-	be->vif->priority=(int)mac[0];
-	printk("~~~~VATC: vif->prio=%d\n", be->vif->priority);
 
 	kobject_uevent(&dev->dev.kobj, KOBJ_ONLINE);
 }

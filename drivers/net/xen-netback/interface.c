@@ -261,7 +261,7 @@ static const struct net_device_ops xenvif_netdev_ops = {
 };
 
 struct xenvif *xenvif_alloc(struct device *parent, domid_t domid,
-			    unsigned int handle)
+			    unsigned int handle, int prio)
 {
 	int err;
 	struct net_device *dev;
@@ -280,6 +280,7 @@ struct xenvif *xenvif_alloc(struct device *parent, domid_t domid,
 	vif = netdev_priv(dev);
 	vif->domid  = domid;
 	vif->handle = handle;
+	vif->priority = prio;
 	vif->netbk  = NULL;
 	vif->can_sg = 1;
 	vif->csum = 1;
