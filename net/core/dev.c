@@ -3708,7 +3708,7 @@ int netif_receive_skb(struct sk_buff *skb)
 				skb->dev=sd->dev_queue[i];
 				skb_push(skb, ETH_HLEN);
 		
-				ret=dev_queue_xmit(skb);
+				int ret=dev_queue_xmit(skb);
 				printk("go dev_queue_xmit, %d\n", ret);
 				rcu_read_unlock();
 				return ret;
