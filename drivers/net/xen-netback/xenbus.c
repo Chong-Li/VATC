@@ -241,11 +241,11 @@ static void backend_create_xenvif(struct backend_info *be)
 	/*VATC*/
 	u8 mac[ETH_ALEN];
 	xen_net_read_mac(dev, mac);
-	printk("~~~VATC: mac[0]=%lu\n", mac[0]);
-	//be->vif->priority=(int)mac[0];
+	printk("~~~VATC: mac[4]=%lu\n", mac[4]);
+	//be->vif->priority=(int)mac[4];
 	//printk("~~~~VATC: vif->prio=%d\n", be->vif->priority);
 
-	be->vif = xenvif_alloc(&dev->dev, dev->otherend_id, handle, (int)mac[0]);
+	be->vif = xenvif_alloc(&dev->dev, dev->otherend_id, handle, (int)mac[4]);
 	if (IS_ERR(be->vif)) {
 		err = PTR_ERR(be->vif);
 		be->vif = NULL;

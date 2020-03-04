@@ -156,7 +156,7 @@ void xen_netbk_add_xenvif(struct xenvif *vif)
 
 /*RTCA*/
 #ifdef NEW_NETBACK
-	if(vif->domid>5){
+	/*if(vif->domid>5){
 		netbk=&xen_netbk[5];
 		netbk->priority=5;
 	}
@@ -170,14 +170,14 @@ void xen_netbk_add_xenvif(struct xenvif *vif)
 		}
 	}
 	//if(vif->domid==1||vif->domid==2)
-		netbk->vif=NULL;
+		netbk->vif=NULL;*/
 
-	/*if(vif->priority >5){
+	if(vif->priority >5){
 		netbk=&xen_netbk[5];
 	} else{
 		netbk=&xen_netbk[vif->priority];
 	}
-	netbk->vif=NULL;*/
+	netbk->vif=NULL;
 #endif
 	vif->netbk = netbk;
 	
