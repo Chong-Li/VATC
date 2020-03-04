@@ -408,6 +408,11 @@ static bool start_new_rx_buffer(int offset, unsigned long size, int head)
 	}
 	return count;
 }*/
+	
+struct xenvif_count_slot_state {
+	unsigned long copy_off;
+	bool head;
+};
 
 unsigned int xenvif_count_frag_slots(struct xenvif *vif,
 				     unsigned long offset, unsigned long size,
