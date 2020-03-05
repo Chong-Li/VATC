@@ -1718,7 +1718,7 @@ static void xen_netbk_tx_submit(struct xen_netbk *netbk)
 /*RTCA*/		
 #ifdef NEW_NETBACK
 		
-			eth_header=(struct ethhdr *)skb_mac_header(skb);
+			/*eth_header=(struct ethhdr *)skb_mac_header(skb);
 			ip_header=(struct iphdr *)((char *)eth_header+sizeof(struct ethhdr));
 			
 			
@@ -1760,6 +1760,13 @@ static void xen_netbk_tx_submit(struct xen_netbk *netbk)
 				else{
 					netif_receive_skb(skb);
 				}
+			}*/
+			rc=netif_receive_skb(skb);
+			if(rc==110){
+				netbk->gso_skb=skb;
+				netbk->gso_flag=1;
+				rcu_read_unlock();
+				break;
 			}
 
 normal:
