@@ -99,6 +99,7 @@ struct xenvif {
 	unsigned long tokens;
 	unsigned long last_fill;
 	struct timer_list token_timeout;
+	int limit_type;
 
 	/* Statistics */
 	unsigned long rx_gso_checksum_fixup;
@@ -125,7 +126,7 @@ static inline struct xenbus_device *xenvif_to_xenbus_device(struct xenvif *vif)
 struct xenvif *xenvif_alloc(struct device *parent,
 			    domid_t domid,
 			    unsigned int handle,
-			    int prio);
+			    int prio, int limit_type);
 static inline int tx_work_todo(struct xen_netbk *netbk);
 
 int xenvif_connect(struct xenvif *vif, unsigned long tx_ring_ref,
