@@ -1596,7 +1596,6 @@ notb:
 		}
 
 		__skb_queue_tail(&netbk->tx_queue, skb);
-		printk("skb to tx_queue, len=%d\n", skb->len);
 
 		netbk->pending_cons++;
 
