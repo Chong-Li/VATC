@@ -290,12 +290,9 @@ static void xen_netbk_kick_thread(struct xen_netbk *netbk)
 	if(!list_empty(&((netbk->wq).task_list))){
 		wake_up(&netbk->wq);
 	}
-	if(!list_empty(&((netbk->tx_wq).task_list))){
+	/*if(!list_empty(&((netbk->tx_wq).task_list))){
 		wake_up(&netbk->tx_wq);
-	}
-
-	//if(netbk->priority==0)
-		//printk("kick, %d %d %d\n", tx_work_todo(netbk), netbk->tx_queue.qlen, tx_ring_unused());
+	}*/
 }
 
 static int max_required_rx_slots(struct xenvif *vif)
@@ -777,13 +774,11 @@ static void xen_netbk_rx_action(struct xen_netbk *netbk)
 		nr_frags = skb_shinfo(skb)->nr_frags;
 
 		sco = (struct skb_cb_overlay *)skb->cb;
-		//printk("rx skb\n");
 		sco->meta_slots_used = netbk_gop_skb(skb, &npo);
 
 		count += nr_frags + 1;
 
 		__skb_queue_tail(&rxq, skb);
-		printk("skb to rxq\n");
 
 		/* Filled the batch queue? */
 		if (count + MAX_SKB_FRAGS >= XEN_NETIF_RX_RING_SIZE)
@@ -865,7 +860,6 @@ static void xen_netbk_rx_action(struct xen_netbk *netbk)
 
 		xenvif_notify_tx_completion(vif);
 
-		printk("push to ring\n");
 
 		if (ret && list_empty(&vif->notify_list))
 			list_add_tail(&vif->notify_list, &notify);
@@ -892,7 +886,6 @@ void xen_netbk_queue_tx_skb(struct xenvif *vif, struct sk_buff *skb)
 	struct xen_netbk *netbk = vif->netbk;
 
 	skb_queue_tail(&netbk->rx_queue, skb);
-	printk("skb to rx_queue, len=%d\n", skb->len);
 
 	xen_netbk_kick_thread(netbk);
 }
@@ -1742,14 +1735,10 @@ static void xen_netbk_tx_submit(struct xen_netbk *netbk)
 
 						skb->dev=sd->dev_queue[i];
 						skb_push(skb, ETH_HLEN);
-						int beforeLen= skb->len;
 						dev_queue_xmit(skb);
-						printk("submit one local skb, len=%d\n", beforeLen);
 				}
 				else{
-					int beforeLen=skb->len;
 					netif_receive_skb(skb);
-					printk("send one local arp, len=%d\n", beforeLen);
 				}
 			}
 			else{
@@ -1761,9 +1750,7 @@ static void xen_netbk_tx_submit(struct xen_netbk *netbk)
 						skb_reset_mac_len(skb);
 						skb->dev=NIC_dev;
 						skb_push(skb, ETH_HLEN);
-						int beforeLen= skb->len;
 						rc=dev_queue_xmit(skb);
-						printk("submit one skb, len=%d, rc=%d\n", beforeLen, rc);
 						if(rc==110){
 							netbk->gso_skb=skb;
 							netbk->gso_flag=1;
@@ -1772,9 +1759,7 @@ static void xen_netbk_tx_submit(struct xen_netbk *netbk)
 						}
 				}
 				else{
-					int beforeLen=skb->len;
 					netif_receive_skb(skb);
-					printk("send one local arp, len=%d\n", beforeLen);
 				}
 			}
 

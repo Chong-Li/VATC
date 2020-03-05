@@ -108,7 +108,6 @@ static int xenvif_start_xmit(struct sk_buff *skb, struct net_device *dev)
 
 	if (vif->can_queue && xen_netbk_must_stop_queue(vif)){
 		netif_stop_queue(dev);
-		printk("stop rx queue\n");
 	}
 
 	xen_netbk_queue_tx_skb(vif, skb);
@@ -118,7 +117,6 @@ static int xenvif_start_xmit(struct sk_buff *skb, struct net_device *dev)
  drop:
 	vif->dev->stats.tx_dropped++;
 	dev_kfree_skb(skb);
-	printk("ring is full\n");
 	return NETDEV_TX_OK;
 }
 
