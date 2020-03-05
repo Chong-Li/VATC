@@ -1470,24 +1470,24 @@ static unsigned xen_netbk_tx_build_gops(struct xen_netbk *netbk)
 
 		/*VATC*/
 		if (vif->limit_type == 0) {
-		/* Credit-based scheduling. */
-		if (txreq.size > vif->remaining_credit &&
-		    tx_credit_exceeded(vif, txreq.size)) {
-			xenvif_put(vif);
-			continue;
-		}
-		vif->remaining_credit -= txreq.size;
+			/* Credit-based scheduling. */
+			if (txreq.size > vif->remaining_credit &&
+		    		tx_credit_exceeded(vif, txreq.size)) {
+				xenvif_put(vif);
+				continue;
+			}
+			vif->remaining_credit -= txreq.size;
 		} else {
-		/*VATC token bucket*/
-		if (vif->credit_usec == 0) {
-			goto notb;
-		}
-		if (tx_token_exceeded(vif, txreq.size)) {
-			xenvif_put(vif);
-			//printk("lack tokens~~~~\n");
-			continue;
-		}
-		vif->remaining_credit -= txreq.size;
+			/*VATC token bucket*/
+			if (vif->credit_usec == 0) {
+				goto notb;
+			}
+			if (tx_token_exceeded(vif, txreq.size)) {
+				xenvif_put(vif);
+				//printk("lack tokens~~~~\n");
+				continue;
+			}
+			vif->remaining_credit -= txreq.size;
 		}
 notb:
 				

@@ -108,6 +108,7 @@ static int xenvif_start_xmit(struct sk_buff *skb, struct net_device *dev)
 
 	if (vif->can_queue && xen_netbk_must_stop_queue(vif)){
 		netif_stop_queue(dev);
+		printk("~~~~~VATC: vif-%d stops the queue\n", vif->domid);
 	}
 
 	xen_netbk_queue_tx_skb(vif, skb);

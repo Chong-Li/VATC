@@ -1872,7 +1872,9 @@ static inline void netif_tx_start_queue(struct netdev_queue *dev_queue)
 {
 	clear_bit(__QUEUE_STATE_DRV_XOFF, &dev_queue->state);
 	/*VATC*/
-	BQL_flag=1;
+	if (dev_queue->dev == NIC_dev) {
+		BQL_flag=1;
+	}
 }
 
 /**
@@ -1907,7 +1909,9 @@ static inline void netif_tx_wake_queue(struct netdev_queue *dev_queue)
 	if (test_and_clear_bit(__QUEUE_STATE_DRV_XOFF, &dev_queue->state)) {
 		__netif_schedule(dev_queue->qdisc);
 		/*VATC*/
-		BQL_flag=1;
+		if (dev_queue->dev == NIC_dev) {
+			BQL_flag=1;
+		}
 	}
 }
 
@@ -1941,7 +1945,9 @@ static inline void netif_tx_stop_queue(struct netdev_queue *dev_queue)
 	}
 	set_bit(__QUEUE_STATE_DRV_XOFF, &dev_queue->state);
 	/*VATC*/
-	BQL_flag = 0;
+	if (dev_queue->dev == NIC_dev) {
+		BQL_flag = 0;
+	}
 }
 
 /**
@@ -2003,7 +2009,9 @@ static inline void netdev_tx_sent_queue(struct netdev_queue *dev_queue,
 
 	set_bit(__QUEUE_STATE_STACK_XOFF, &dev_queue->state);
 	/*VATC*/
-	BQL_flag=0;
+	if (dev_queue->dev == NIC_dev) {
+		BQL_flag=0;
+	}
 
 
 	/*
@@ -2017,7 +2025,9 @@ static inline void netdev_tx_sent_queue(struct netdev_queue *dev_queue,
 	if (unlikely(dql_avail(&dev_queue->dql) >= 0)) {
 		clear_bit(__QUEUE_STATE_STACK_XOFF, &dev_queue->state);
 		/*VATC*/
-		BQL_flag=1;
+		if (dev_queue->dev == NIC_dev) {
+			BQL_flag=1;
+		}
 	}
 #endif
 }
@@ -2047,7 +2057,9 @@ static inline void netdev_tx_completed_queue(struct netdev_queue *dev_queue,
 		return;
 
 	/*VATC*/
-	BQL_flag=1;
+	if (dev_queue->dev == NIC_dev) {
+		BQL_flag=1;
+	}
 
 	if (test_and_clear_bit(__QUEUE_STATE_STACK_XOFF, &dev_queue->state))
 		netif_schedule_queue(dev_queue);
@@ -2066,7 +2078,9 @@ static inline void netdev_tx_reset_queue(struct netdev_queue *q)
 	clear_bit(__QUEUE_STATE_STACK_XOFF, &q->state);
 	dql_reset(&q->dql);
 	/*VATC*/
-	BQL_flag=1;
+	if (q->dev == NIC_dev) {
+		BQL_flag=1;
+	}
 #endif
 }
 
