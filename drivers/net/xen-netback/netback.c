@@ -1820,9 +1820,10 @@ static void xen_netbk_tx_submit(struct xen_netbk *netbk)
 
 normal:
 			rcu_read_unlock();			
-			continue;	
-#endif
+			continue;
 */
+#endif
+
 
 /*VATC*/
 		rcu_read_lock();
