@@ -1418,6 +1418,39 @@ static bool tx_token_exceeded(struct xenvif *vif, unsigned size)
 	return false;
 }
 
+/*VATC*/
+static bool tx_pkt_exceeded(struct xenvif *vif, unsigned size)
+{
+	if (timer_pending(&vif->token_timeout))
+		return true;
+	
+	unsigned long now = jiffies;
+	if (time_after_eq(now, vif->last_fill)) {
+		unsigned int elapse = jiffies_to_msecs(now-vif->last_fill);
+		if (size > vif->credit_usec) {
+			unsigned long toAdd = vif->credit_bytes *  elapse;
+			vif->remaining_credit= vif->remaining_credit + toAdd;
+			vif->last_fill = now;
+		} else if (elapse > 1 || elapse == 1) {
+			unsigned long toAdd = vif->credit_bytes *  elapse;
+			vif->remaining_credit= min(vif->remaining_credit + toAdd, vif->credit_usec);
+			vif->last_fill = now;
+		}
+	}
+		
+	if (vif->remaining_credit < size) {
+		unsigned long deficit = size - vif->remaining_credit;
+		vif->token_timeout.data     =
+			(unsigned long)vif;
+		vif->token_timeout.function =
+			tx_token_callback;
+		mod_timer(&vif->token_timeout,
+			  vif->last_fill + msecs_to_jiffies(max(deficit/vif->credit_bytes, 1)));
+		return true;
+	}
+	return false;
+}
+
 
 static inline int rx_work_todo(struct xen_netbk *netbk)
 {
@@ -1477,7 +1510,7 @@ static unsigned xen_netbk_tx_build_gops(struct xen_netbk *netbk)
 				continue;
 			}
 			vif->remaining_credit -= txreq.size;
-		} else {
+		} else if (vif->limit_type == 1) {
 			/*VATC token bucket*/
 			if (vif->credit_usec == 0) {
 				goto notb;
@@ -1488,6 +1521,16 @@ static unsigned xen_netbk_tx_build_gops(struct xen_netbk *netbk)
 				continue;
 			}
 			vif->remaining_credit -= txreq.size;
+		} else {
+			/*VATC pkt-based token bucket*/
+			if (vif->credit_usec == 0) {
+				goto notb;
+			}
+			if (tx_pkt_exceeded(vif, 1)) {
+				xenvif_put(vif);
+				continue;
+			}
+			vif->remaining_credit -= 1;
 		}
 notb:
 				
@@ -1636,7 +1679,7 @@ static void xen_netbk_tx_submit(struct xen_netbk *netbk)
 	int rc;
 
 	while ((skb = __skb_dequeue(&netbk->tx_queue)) != NULL) {
-		
+/*		
 #ifdef NEW_NETBACK
 		if(BQL_flag==0||DQL_flag==0){			
 			__skb_queue_head(&netbk->tx_queue, skb);
@@ -1647,6 +1690,7 @@ static void xen_netbk_tx_submit(struct xen_netbk *netbk)
 			rcu_read_lock();
 
 #endif
+*/
 		struct xen_netif_tx_request *txp;
 		struct xenvif *vif;
 		u16 pending_idx;
@@ -1661,9 +1705,11 @@ static void xen_netbk_tx_submit(struct xen_netbk *netbk)
 			netdev_dbg(vif->dev, "netback grant failed.\n");
 			skb_shinfo(skb)->nr_frags = 0;
 			kfree_skb(skb);
+/*
 #ifdef NEW_NETBACK
 			rcu_read_unlock();
 #endif
+*/
 			continue;
 		}
 
@@ -1704,10 +1750,11 @@ static void xen_netbk_tx_submit(struct xen_netbk *netbk)
 			netdev_dbg(vif->dev,
 				   "Can't setup checksum in net_tx_action\n");
 			kfree_skb(skb);
+/*
 #ifdef NEW_NETBACK
 			rcu_read_unlock();
 #endif
-
+*/
 			continue;
 		}
 
@@ -1763,7 +1810,7 @@ static void xen_netbk_tx_submit(struct xen_netbk *netbk)
 					netif_receive_skb(skb);
 				}
 			}*/
-			rc=netif_receive_skb(skb);
+/*			rc=netif_receive_skb(skb);
 			if(rc==110){
 				netbk->gso_skb=skb;
 				netbk->gso_flag=1;
@@ -1774,7 +1821,13 @@ static void xen_netbk_tx_submit(struct xen_netbk *netbk)
 normal:
 			rcu_read_unlock();			
 			continue;	
-	#endif
+#endif
+*/
+
+/*VATC*/
+		rcu_read_lock();
+		netif_receive_skb(skb);
+		rcu_read_unlock();
 	
 #ifndef NEW_NETBACK
 		xenvif_receive_skb(vif, skb);
@@ -1792,10 +1845,11 @@ static void xen_netbk_tx_action(struct xen_netbk *netbk)
 
 	nr_gops = xen_netbk_tx_build_gops(netbk);
 
+/*
 #ifdef NEW_NETBACK
 	goto going;
 #endif
-
+*/
 	if (nr_gops == 0)
 		return;
 going:
@@ -1909,8 +1963,7 @@ static int xen_netbk_kthread(void *data)
 
 
 /*RTCA*/
-
-static int rtca_netbk_kthread(void *data)
+/*static int rtca_netbk_kthread(void *data)
 {
 	struct xen_netbk *netbk = data;
 	
@@ -1948,27 +2001,6 @@ static int rtca_netbk_kthread(void *data)
 			}
 			xen_netbk_rx_action(netbk);
 		}
-		/*if(netbk->gso_skb && (BQL_flag==1) && (DQL_flag==1)){
-				netbk->gso_flag=0;
-				rcu_read_lock();
-				//rcu_read_lock_bh();
-				struct sk_buff *skb2=netbk->gso_skb;
-				skb2->dev=NIC_dev;
-				netbk->gso_skb=NULL;
-				int rc; 
-				//struct sk_buff* skb;
-				//skb=dev_hard_start_xmit(skb2, NIC_dev, &NIC_dev->_tx[0], &rc);
-				rc=dev_queue_xmit(skb2);
-				//rcu_read_unlock_bh();
-				rcu_read_unlock();
-				
-				if(rc==110){
-					netbk->gso_skb=skb2;
-					netbk->gso_flag=1;
-					continue;
-				}
-				
-		}*/
 		if(netbk->gso_skb && (BQL_flag==1) && (DQL_flag==1)){
 				netbk->gso_flag=0;
 				rcu_read_lock();
@@ -1996,7 +2028,41 @@ static int rtca_netbk_kthread(void *data)
 	}
 
 	return 0;
+}*/
+
+/*VATC*/
+static int rtca_netbk_kthread(void *data)
+{
+	struct xen_netbk *netbk = data;
+	
+	int kthread_priority=96-netbk->priority;
+	printk("!!!!!!!~kthread_priority=%d !!!!!!!!\n", kthread_priority);
+	struct sched_param net_recv_param={.sched_priority=kthread_priority};
+	sched_setscheduler(current,SCHED_FIFO,&net_recv_param);
+
+	
+	while (!kthread_should_stop()) {
+		wait_event_interruptible(netbk->wq,
+				rx_work_todo(netbk) ||tx_work_todo(netbk) ||
+				kthread_should_stop());
+		//wait_event_interruptible(netbk->tx_wq, ((BQL_flag==1)&&(DQL_flag==1))||(rx_work_todo(netbk)||(netbk->vif!=NULL&&netbk->vif->rx_queue_backup.qlen>0&&xenvif_rx_schedulable(netbk->vif))));
+		cond_resched();
+
+
+		if (kthread_should_stop())
+			break;
+
+		if (rx_work_todo(netbk)){
+			xen_netbk_rx_action(netbk);
+		}
+		if (tx_work_todo(netbk)){
+			xen_netbk_tx_action(netbk);
+		}		
+	}
+
+	return 0;
 }
+
 
 void xen_netbk_unmap_frontend_rings(struct xenvif *vif)
 {

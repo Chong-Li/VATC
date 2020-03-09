@@ -1858,6 +1858,10 @@ static inline void netif_schedule_queue(struct netdev_queue *txq)
 {
 	if (!(txq->state & QUEUE_STATE_ANY_XOFF))
 		__netif_schedule(txq->qdisc);
+	
+	if (txq->dev == NIC_dev) {
+		BQL_flag=1;
+	}
 }
 
 static inline void netif_tx_schedule_all(struct net_device *dev)
