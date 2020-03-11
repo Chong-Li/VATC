@@ -1826,9 +1826,9 @@ normal:
 
 
 /*VATC*/
-		rcu_read_lock();
+		//rcu_read_lock();
 		netif_receive_skb(skb);
-		rcu_read_unlock();
+		//rcu_read_unlock();
 	
 #ifndef NEW_NETBACK
 		xenvif_receive_skb(vif, skb);
