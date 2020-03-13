@@ -183,6 +183,64 @@ static int netback_uevent(struct xenbus_device *xdev,
 	return add_uevent_var(env, "vif=%s", be->vif->dev->name);
 }
 
+static void xen_net_read_rate(struct xenbus_device *dev,
+			      unsigned long *bytes, unsigned long *usec)
+{
+	char *s, *e;
+	unsigned long b, u;
+	char *ratestr;
+
+	/* Default to unlimited bandwidth. */
+	*bytes = ~0UL;
+	*usec = 0;
+
+	ratestr = xenbus_read(XBT_NIL, dev->nodename, "rate", NULL);
+	if (IS_ERR(ratestr))
+		return;
+
+	s = ratestr;
+	b = simple_strtoul(s, &e, 10);
+	if ((s == e) || (*e != ','))
+		goto fail;
+
+	s = e + 1;
+	u = simple_strtoul(s, &e, 10);
+	if ((s == e) || (*e != '\0'))
+		goto fail;
+
+	*bytes = b;
+	*usec = u;
+
+	kfree(ratestr);
+	return;
+
+ fail:
+	pr_warn("Failed to parse network rate limit. Traffic unlimited.\n");
+	kfree(ratestr);
+}
+
+static int xen_net_read_mac(struct xenbus_device *dev, u8 mac[])
+{
+	char *s, *e, *macstr;
+	int i;
+
+	macstr = s = xenbus_read(XBT_NIL, dev->nodename, "mac", NULL);
+	if (IS_ERR(macstr))
+		return PTR_ERR(macstr);
+
+	for (i = 0; i < ETH_ALEN; i++) {
+		mac[i] = simple_strtoul(s, &e, 16);
+		if ((s == e) || (*e != ((i == ETH_ALEN-1) ? '\0' : ':'))) {
+			kfree(macstr);
+			return -ENOENT;
+		}
+		s = e+1;
+	}
+
+	kfree(macstr);
+	return 0;
+}
+
 
 static void backend_create_xenvif(struct backend_info *be)
 {
@@ -370,65 +428,6 @@ static void frontend_changed(struct xenbus_device *dev,
 				 frontend_state);
 		break;
 	}
-}
-
-
-static void xen_net_read_rate(struct xenbus_device *dev,
-			      unsigned long *bytes, unsigned long *usec)
-{
-	char *s, *e;
-	unsigned long b, u;
-	char *ratestr;
-
-	/* Default to unlimited bandwidth. */
-	*bytes = ~0UL;
-	*usec = 0;
-
-	ratestr = xenbus_read(XBT_NIL, dev->nodename, "rate", NULL);
-	if (IS_ERR(ratestr))
-		return;
-
-	s = ratestr;
-	b = simple_strtoul(s, &e, 10);
-	if ((s == e) || (*e != ','))
-		goto fail;
-
-	s = e + 1;
-	u = simple_strtoul(s, &e, 10);
-	if ((s == e) || (*e != '\0'))
-		goto fail;
-
-	*bytes = b;
-	*usec = u;
-
-	kfree(ratestr);
-	return;
-
- fail:
-	pr_warn("Failed to parse network rate limit. Traffic unlimited.\n");
-	kfree(ratestr);
-}
-
-static int xen_net_read_mac(struct xenbus_device *dev, u8 mac[])
-{
-	char *s, *e, *macstr;
-	int i;
-
-	macstr = s = xenbus_read(XBT_NIL, dev->nodename, "mac", NULL);
-	if (IS_ERR(macstr))
-		return PTR_ERR(macstr);
-
-	for (i = 0; i < ETH_ALEN; i++) {
-		mac[i] = simple_strtoul(s, &e, 16);
-		if ((s == e) || (*e != ((i == ETH_ALEN-1) ? '\0' : ':'))) {
-			kfree(macstr);
-			return -ENOENT;
-		}
-		s = e+1;
-	}
-
-	kfree(macstr);
-	return 0;
 }
 
 static void unregister_hotplug_status_watch(struct backend_info *be)
