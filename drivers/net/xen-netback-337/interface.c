@@ -36,8 +36,17 @@
 
 #include <xen/events.h>
 #include <asm/xen/hypercall.h>
+#include <linux/if_ether.h>
+#include <linux/icmp.h>
+#include <linux/ip.h>
+#include <linux/sched.h>
+#include <linux/kernel.h>
+
+int in_echo;
 
 #define XENVIF_QUEUE_LENGTH 32
+
+#define NEW_INTERFACE
 
 void xenvif_get(struct xenvif *vif)
 {
@@ -55,8 +64,9 @@ int xenvif_schedulable(struct xenvif *vif)
 	return netif_running(vif->dev) && netif_carrier_ok(vif->dev);
 }
 
-static int xenvif_rx_schedulable(struct xenvif *vif)
+ int xenvif_rx_schedulable(struct xenvif *vif)
 {
+
 	return xenvif_schedulable(vif) && !xen_netbk_rx_ring_full(vif);
 }
 
@@ -67,7 +77,9 @@ static irqreturn_t xenvif_interrupt(int irq, void *dev_id)
 	if (vif->netbk == NULL)
 		return IRQ_NONE;
 
+
 	xen_netbk_schedule_xenvif(vif);
+
 
 	if (xenvif_rx_schedulable(vif))
 		netif_wake_queue(vif->dev);
@@ -83,9 +95,10 @@ static int xenvif_start_xmit(struct sk_buff *skb, struct net_device *dev)
 
 	if (vif->netbk == NULL)
 		goto drop;
+	
 
 	/* Drop the packet if the target domain has no receive buffers. */
-	if (!xenvif_rx_schedulable(vif)) {
+	if (!xenvif_rx_schedulable(vif)){
 		printk("~~~~~VATC: drop pkt at vif-%d\n", vif->domid);
 		goto drop;
 	}
@@ -94,7 +107,7 @@ static int xenvif_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	vif->rx_req_cons_peek += xen_netbk_count_skb_slots(vif, skb);
 	xenvif_get(vif);
 
-	if (vif->can_queue && xen_netbk_must_stop_queue(vif)) {
+	if (vif->can_queue && xen_netbk_must_stop_queue(vif)){
 		netif_stop_queue(dev);
 		printk("~~~~~VATC: vif-%d stops the queue\n", vif->domid);
 	}
@@ -118,9 +131,9 @@ void xenvif_notify_tx_completion(struct xenvif *vif)
 {
 	if (netif_queue_stopped(vif->dev) && xenvif_rx_schedulable(vif)) {
 		netif_wake_queue(vif->dev);
-		/*VATC*/
-		//kick_rx_backup(vif);
-		xen_netbk_schedule_xenvif(vif);
+#ifdef NEW_INTERFACE
+		kick_rx_backup(vif);
+#endif 
 	}
 }
 
@@ -140,7 +153,6 @@ static void xenvif_up(struct xenvif *vif)
 static void xenvif_down(struct xenvif *vif)
 {
 	disable_irq(vif->irq);
-	del_timer_sync(&vif->credit_timeout);
 	xen_netbk_deschedule_xenvif(vif);
 	xen_netbk_remove_xenvif(vif);
 }
@@ -247,8 +259,6 @@ static const struct net_device_ops xenvif_netdev_ops = {
 	.ndo_stop	= xenvif_close,
 	.ndo_change_mtu	= xenvif_change_mtu,
 	.ndo_fix_features = xenvif_fix_features,
-	.ndo_set_mac_address = eth_mac_addr,
-	.ndo_validate_addr   = eth_validate_addr,
 };
 
 struct xenvif *xenvif_alloc(struct device *parent, domid_t domid,
@@ -288,12 +298,14 @@ struct xenvif *xenvif_alloc(struct device *parent, domid_t domid,
 	vif->credit_bytes = vif->remaining_credit = ~0UL;
 	vif->credit_usec  = 0UL;
 	init_timer(&vif->credit_timeout);
-	vif->credit_window_start = get_jiffies_64();
+	/* Initialize 'expires' now: it's used to track the credit window. */
+	vif->credit_timeout.expires = jiffies;
 
 	dev->netdev_ops	= &xenvif_netdev_ops;
 	dev->hw_features = NETIF_F_SG | NETIF_F_IP_CSUM | NETIF_F_TSO;
 	dev->features = dev->hw_features;
-	SET_ETHTOOL_OPS(dev, &xenvif_ethtool_ops);
+	//SET_ETHTOOL_OPS(dev, &xenvif_ethtool_ops);
+	dev->ethtool_ops = &xenvif_ethtool_ops;
 
 	dev->tx_queue_len = XENVIF_QUEUE_LENGTH;
 
@@ -315,27 +327,39 @@ struct xenvif *xenvif_alloc(struct device *parent, domid_t domid,
 		return ERR_PTR(err);
 	}
 
-	/*VATC*/
-	dev->priority=vif->priority;
+/*RTCA*/
+#ifdef NEW_INTERFACE
 
-	unsigned long flags;
-	struct softnet_data *sd;
-	sd=&__get_cpu_var(softnet_data);
-	local_irq_save(flags);
-	sd->dev_queue[sd->dom_index -1]=dev;
-	local_irq_restore(flags);	
-	vif->rate = 30; //bytes per milli-second
-	vif->burst  = 3000;
-	vif->tokens = 3000;
+		/*dev->domid=vif->domid;
+		if(dev->domid>6)
+			dev->priority=5;
+		else
+			dev->priority=(dev->domid-1);
+		if(dev->domid>6)
+			goto next;*/
+		dev->priority=vif->priority;
+
+		unsigned long flags;
+		struct softnet_data *sd;
+		sd=&__get_cpu_var(softnet_data);
+		local_irq_save(flags);
+		sd->dev_queue[sd->dom_index -1]=dev;
+		local_irq_restore(flags);
+		skb_queue_head_init(&vif->rx_queue_backup);
+
+		/*VATC*/
+		vif->rate = 30; //bytes per milli-second
+		vif->burst  = 3000;
+		vif->tokens = 3000;
 		
-	vif->last_fill = jiffies;
-	init_timer(&vif->token_timeout);
-	printk("interface.c: %s, dom: %d, priority: %d\n", __func__, dev->domid, dev->priority);
-	
+		vif->last_fill = jiffies;
+		init_timer(&vif->token_timeout);
+next:
+		printk("interface.c: %s, dom: %d, priority: %d\n", __func__, dev->domid, dev->priority);
+
+#endif
+
 	netdev_dbg(dev, "Successfully created xenvif\n");
-
-	__module_get(THIS_MODULE);
-
 	return vif;
 }
 
@@ -378,39 +402,29 @@ err:
 	return err;
 }
 
-void xenvif_carrier_off(struct xenvif *vif)
-{
-	struct net_device *dev = vif->dev;
-
-	rtnl_lock();
-	netif_carrier_off(dev); /* discard queued packets */
-	if (netif_running(dev))
-		xenvif_down(vif);
-	rtnl_unlock();
-	xenvif_put(vif);
-}
-
 void xenvif_disconnect(struct xenvif *vif)
 {
-	if (netif_carrier_ok(vif->dev))
-		xenvif_carrier_off(vif);
-
-	if (vif->irq) {
-		unbind_from_irqhandler(vif->irq, vif);
-		vif->irq = 0;
+	struct net_device *dev = vif->dev;
+	if (netif_carrier_ok(dev)) {
+		rtnl_lock();
+		netif_carrier_off(dev); /* discard queued packets */
+		if (netif_running(dev))
+			xenvif_down(vif);
+		rtnl_unlock();
+		xenvif_put(vif);
 	}
 
-	xen_netbk_unmap_frontend_rings(vif);
-}
-
-void xenvif_free(struct xenvif *vif)
-{
 	atomic_dec(&vif->refcnt);
 	wait_event(vif->waiting_to_free, atomic_read(&vif->refcnt) == 0);
 
+	del_timer_sync(&vif->credit_timeout);
+
+	if (vif->irq)
+		unbind_from_irqhandler(vif->irq, vif);
+
 	unregister_netdev(vif->dev);
 
-	free_netdev(vif->dev);
+	xen_netbk_unmap_frontend_rings(vif);
 
-	module_put(THIS_MODULE);
+	free_netdev(vif->dev);
 }

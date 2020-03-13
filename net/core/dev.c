@@ -4326,9 +4326,9 @@ static int net_recv_kthread(void *data){
 		}
 		net_rps_action_and_irq_enable(sd);
 
-		//printk("Out of kthread_list\n");
 		net_recv_flag = 0;
-		int vif_index;
+		
+		/*int vif_index;
 		for(vif_index=0; vif_index<6; vif_index++){	
 			if(netbk_tx_wq[vif_index]!=NULL&&!list_empty(&(netbk_tx_wq[vif_index]->task_list))){					
 				if(BQL_flag==1&&DQL_flag==1){					
@@ -4336,7 +4336,7 @@ static int net_recv_kthread(void *data){
 					//printk("~~~~~wake up netbk_tx_wq[%d]\n", vif_index);
 				}
 			}				
-		}	
+		}*/	
 		//printk("After wake up netbk_tx_wq\n");
 	}
 	return 0;
