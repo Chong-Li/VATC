@@ -180,7 +180,6 @@ void xen_netbk_add_xenvif(struct xenvif *vif)
 	} else{
 		netbk=&xen_netbk[vif->priority];
 	}
-	netbk->vif=NULL;
 
 	vif->netbk = netbk;
 	atomic_inc(&netbk->netfront_count);
@@ -2058,7 +2057,7 @@ static int __init netback_init(void)
 
 		//kthread_bind(netbk->task, group);
 		/*VATC*/
-		kthread(netbk->task, 0);
+		kthread_bind(netbk->task, 0);
 
 		INIT_LIST_HEAD(&netbk->net_schedule_list);
 
