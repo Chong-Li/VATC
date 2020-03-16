@@ -2940,7 +2940,8 @@ static inline void ____napi_schedule(struct softnet_data *sd,
 {
 	/*VATC*/
 	if (napi->dev != NULL){
-		if (!memcmp(napi->dev->name, NIC_name, NIC_name_len)){
+		//if (!memcmp(napi->dev->name, NIC_name, NIC_name_len)){
+		if (napi->dev == NIC_dev) {
 			//printk("~~~~~~~~~~~~~~~ napi_sched: %s\n",napi->dev->name);
 			//if (list_empty(&napi->kthread_list)){
 				list_add_tail(&napi->kthread_list, &sd->kthread_list);

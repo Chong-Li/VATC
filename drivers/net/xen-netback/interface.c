@@ -86,7 +86,7 @@ static int xenvif_start_xmit(struct sk_buff *skb, struct net_device *dev)
 
 	/* Drop the packet if the target domain has no receive buffers. */
 	if (!xenvif_rx_schedulable(vif)) {
-		printk("~~~~~VATC: drop pkt at vif-%d\n", vif->domid);
+		//printk("~~~~~VATC: drop pkt at vif-%d\n", vif->domid);
 		goto drop;
 	}
 
@@ -96,7 +96,7 @@ static int xenvif_start_xmit(struct sk_buff *skb, struct net_device *dev)
 
 	if (vif->can_queue && xen_netbk_must_stop_queue(vif)) {
 		netif_stop_queue(dev);
-		printk("~~~~~VATC: vif-%d stops the queue\n", vif->domid);
+		//printk("~~~~~VATC: vif-%d stops the queue\n", vif->domid);
 	}
 
 	xen_netbk_queue_tx_skb(vif, skb);
