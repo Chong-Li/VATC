@@ -1586,16 +1586,38 @@ static unsigned xen_netbk_tx_build_gops(struct xen_netbk *netbk)
 		idx = vif->tx.req_cons;
 		rmb(); /* Ensure that we see the request before we copy it. */
 		memcpy(&txreq, RING_GET_REQUEST(&vif->tx, idx), sizeof(txreq));
-
-		/* Credit-based scheduling. */
-		if (txreq.size > vif->remaining_credit &&
-		    tx_credit_exceeded(vif, txreq.size)) {
-			xenvif_put(vif);
-			continue;
+		/*VATC*/
+		if (vif->limit_type == 0) {
+			/* Credit-based scheduling. */
+			if (txreq.size > vif->remaining_credit &&
+		    		tx_credit_exceeded(vif, txreq.size)) {
+				xenvif_put(vif);
+				continue;
+			}
+			vif->remaining_credit -= txreq.size;
+		} else if (vif->limit_type == 1) {
+			/*VATC token bucket*/
+			if (vif->credit_usec == 0) {
+				goto notb;
+			}
+			if (tx_token_exceeded(vif, txreq.size)) {
+				xenvif_put(vif);
+				//printk("lack tokens~~~~\n");
+				continue;
+			}
+			vif->remaining_credit -= txreq.size;
+		} else {
+			/*VATC pkt-based token bucket*/
+			if (vif->credit_usec == 0) {
+				goto notb;
+			}
+			if (tx_pkt_exceeded(vif, 1)) {
+				xenvif_put(vif);
+				continue;
+			}
+			vif->remaining_credit -= 1;
 		}
-
-		vif->remaining_credit -= txreq.size;
-
+notb:
 		work_to_do--;
 		vif->tx.req_cons = ++idx;
 
