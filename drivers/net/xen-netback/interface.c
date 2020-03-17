@@ -273,8 +273,9 @@ struct xenvif *xenvif_alloc(struct device *parent, domid_t domid,
 	vif->handle = handle;
 	/*VATC*/
 	vif->priority = prio;
-	vif->limit_type = limit_type;
-	printk("dom_%d, prio=%d, limit_type=%d\n", domid, prio, limit_type);
+	vif->limit_type = 2;
+	vif->cpu_index = limit_type;
+	printk("dom_%d, prio=%d, cpu_index=%d\n", domid, prio, limit_type);
 	
 	vif->netbk  = NULL;
 	vif->can_sg = 1;

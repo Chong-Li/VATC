@@ -145,6 +145,7 @@ struct xen_netbk {
 
 static struct xen_netbk *xen_netbk;
 static int xen_netbk_group_nr;
+static int num_prio;
 
 /*
  * If head != INVALID_PENDING_RING_IDX, it means this tx request is head of
@@ -175,11 +176,13 @@ void xen_netbk_add_xenvif(struct xenvif *vif)
 	netbk = &xen_netbk[min_group];
 
 	/*VATC*/
-	if(vif->priority >5){
+	/*if(vif->priority >5){
 		netbk=&xen_netbk[5];
 	} else{
 		netbk=&xen_netbk[vif->priority];
-	}
+	}*/
+	netbk = &xen_netbk[vif->cpu_index*num_prio + vif->priority];
+	printk("dom_%d add to cpu=%, prio=%d, count=%d\n", vif->domid, vif->cpu_index, vif->priority, vif->cpu_index*num_prio + vif->priority);
 
 	vif->netbk = netbk;
 	atomic_inc(&netbk->netfront_count);
@@ -2039,15 +2042,19 @@ static int __init netback_init(void)
 	xen_netbk_group_nr = num_online_cpus();
 	
 	/*VATC*/
-	xen_netbk_group_nr = 6;
+	//xen_netbk_group_nr = 6;
+	num_prio =2;
+	int cur_prio;
 
-	xen_netbk = vzalloc(sizeof(struct xen_netbk) * xen_netbk_group_nr);
+	//xen_netbk = vzalloc(sizeof(struct xen_netbk) * xen_netbk_group_nr);
+	xen_netbk = vzalloc(sizeof(struct xen_netbk) * (xen_netbk_group_nr * num_prio));
 	if (!xen_netbk)
 		return -ENOMEM;
 
 	for (group = 0; group < xen_netbk_group_nr; group++) {
+		for (cur_prio = 0; cur_prio < num_prio; cur_prio++) {
 		printk("~~~~~~\n ~~~~~~~\n ~~~~~~~\n group==%d ~~~~~~~~~~~~~~~~~\n", group);
-		struct xen_netbk *netbk = &xen_netbk[group];
+		struct xen_netbk *netbk = &xen_netbk[group*num_prio+cur_prio];
 		skb_queue_head_init(&netbk->rx_queue);
 		skb_queue_head_init(&netbk->tx_queue);
 
@@ -2061,14 +2068,14 @@ static int __init netback_init(void)
 			netbk->pending_ring[i] = i;
 
 		/*VATC*/
-		netbk->priority=group;
+		netbk->priority=cur_prio;
 		init_waitqueue_head(&netbk->wq);
-		netbk_wq[group]=&netbk->wq;
+		//netbk_wq[group]=&netbk->wq;
 
 		init_waitqueue_head(&netbk->wq);
 		netbk->task = kthread_create(xen_netbk_kthread,
 					     (void *)netbk,
-					     "netback/%u", group);
+					     "netback/%u", group*num_prio+cur_prio);
 
 		if (IS_ERR(netbk->task)) {
 			printk(KERN_ALERT "kthread_create() fails at netback\n");
@@ -2077,9 +2084,9 @@ static int __init netback_init(void)
 			goto failed_init;
 		}
 
-		//kthread_bind(netbk->task, group);
+		kthread_bind(netbk->task, group);
 		/*VATC*/
-		kthread_bind(netbk->task, 0);
+		//kthread_bind(netbk->task, 0);
 
 		INIT_LIST_HEAD(&netbk->net_schedule_list);
 
@@ -2088,6 +2095,7 @@ static int __init netback_init(void)
 		atomic_set(&netbk->netfront_count, 0);
 
 		wake_up_process(netbk->task);
+		}
 	}
 
 	rc = xenvif_xenbus_init();

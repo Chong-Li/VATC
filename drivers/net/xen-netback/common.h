@@ -60,6 +60,7 @@ struct xenvif {
 	unsigned long last_fill;
 	struct timer_list token_timeout;
 	int limit_type;
+	int cpu_index;
 
 
 	/* Reference to netback processing backend. */
