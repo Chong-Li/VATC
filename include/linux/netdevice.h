@@ -1832,6 +1832,9 @@ struct softnet_data {
 	struct net_device* dev_queue[20];
 	int dev_index;
 	int dom_index;
+	wait_queue_head_t net_recv_wq;
+	struct task_struct *net_recv_task;
+	int net_recv_flag;
 
 };
 

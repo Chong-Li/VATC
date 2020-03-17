@@ -182,7 +182,7 @@ void xen_netbk_add_xenvif(struct xenvif *vif)
 		netbk=&xen_netbk[vif->priority];
 	}*/
 	netbk = &xen_netbk[vif->cpu_index*num_prio + vif->priority];
-	printk("dom_%d add to cpu=%, prio=%d, count=%d\n", vif->domid, vif->cpu_index, vif->priority, vif->cpu_index*num_prio + vif->priority);
+	printk("~~~~~~VATC: dom_%d add to cpu=%d, prio=%d, count=%d\n", vif->domid, vif->cpu_index, vif->priority, vif->cpu_index*num_prio + vif->priority);
 
 	vif->netbk = netbk;
 	atomic_inc(&netbk->netfront_count);

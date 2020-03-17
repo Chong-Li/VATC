@@ -2947,9 +2947,9 @@ static inline void ____napi_schedule(struct softnet_data *sd,
 				list_add_tail(&napi->kthread_list, &sd->kthread_list);
 				//printk("~~~~ add to kthread_list\n");
 			//}
-				net_recv_flag = 1;
-				if(!list_empty(&(net_recv_wq.task_list))){
-					wake_up(&net_recv_wq);
+				sd->net_recv_flag = 1;
+				if(!list_empty(&(sd->net_recv_wq.task_list))){
+					wake_up(&sd->net_recv_wq);
 				}
 			return;
 		}
@@ -4281,8 +4281,8 @@ static int net_recv_kthread(void *data){
 	sched_setscheduler(current,SCHED_FIFO,&net_recv_param);
 	struct softnet_data *sd=data;
 	while (!kthread_should_stop()) {
-		wait_event_interruptible(net_recv_wq,
-				net_recv_flag||kthread_should_stop());
+		wait_event_interruptible(sd->net_recv_wq,
+				sd->net_recv_flag||kthread_should_stop());
 		cond_resched();
 		if (kthread_should_stop())
 			break;
@@ -4327,7 +4327,7 @@ static int net_recv_kthread(void *data){
 		}
 		net_rps_action_and_irq_enable(sd);
 
-		net_recv_flag = 0;
+		sd->net_recv_flag = 0;
 		
 		/*int vif_index;
 		for(vif_index=0; vif_index<6; vif_index++){	
@@ -6497,6 +6497,15 @@ static int __init net_dev_init(void)
 		INIT_LIST_HEAD(&sd->poll_list);
 		/*VATC*/
 		INIT_LIST_HEAD(&sd->kthread_list);
+
+		sd->net_recv_flag=1;
+		init_waitqueue_head(&sd->net_recv_wq);
+		sd->net_recv_task=kthread_create(net_recv_kthread, (void *)&per_cpu(softnet_data, i), "net_recv/%u", i);		
+		if (IS_ERR(sd->net_recv_task)) {
+			printk(KERN_ALERT "kthread_create() fails at net_recv/n");
+		}		
+		kthread_bind(sd->net_recv_task,i);
+		wake_up_process(sd->net_recv_task);
 				
 		sd->output_queue = NULL;
 		sd->output_queue_tailp = &sd->output_queue;
@@ -6536,15 +6545,7 @@ static int __init net_dev_init(void)
 	memcpy(NIC_name, "ens1", NIC_name_len);
 	BQL_flag=1;
 	DQL_flag=1;
-	net_recv_flag=1;
-			
-	init_waitqueue_head(&net_recv_wq);
-	net_recv_task=kthread_create(net_recv_kthread, (void *)&per_cpu(softnet_data, 0), "net_recv/");		
-	if (IS_ERR(net_recv_task)) {
-		printk(KERN_ALERT "kthread_create() fails at net_recv/n");
-	}		
-	kthread_bind(net_recv_task,0);
-	wake_up_process(net_recv_task);
+	
 
 	/*init_waitqueue_head(&tx_ring_clean_wq);
 	tx_ring_clean_task=kthread_create(tx_ring_clean_kthread, (void *)NIC_dev, "tx_ring_clean/");		
