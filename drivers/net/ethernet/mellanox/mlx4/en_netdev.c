@@ -1214,8 +1214,6 @@ static void mlx4_en_tx_timeout(struct net_device *dev)
 	priv->port_stats.tx_timeout++;
 	
 	en_dbg(DRV, priv, "Scheduling watchdog\n");
-	/*VATC*/
-	return
 	queue_work(mdev->workqueue, &priv->watchdog_task);
 }
 
