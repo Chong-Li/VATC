@@ -1212,10 +1212,10 @@ static void mlx4_en_tx_timeout(struct net_device *dev)
 		en_warn(priv, "Tx timeout called on port:%d\n", priv->port);
 
 	priv->port_stats.tx_timeout++;
-	/*VATC*/
-	return
 	
 	en_dbg(DRV, priv, "Scheduling watchdog\n");
+	/*VATC*/
+	return
 	queue_work(mdev->workqueue, &priv->watchdog_task);
 }
 
