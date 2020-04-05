@@ -245,7 +245,7 @@ void xen_netbk_add_xenvif(struct xenvif *vif)
 	printk("~~~~!!!!VATC: add dom %d\n", vif->domid);
 	for (i=0; i< xen_netbk_group_nr; i++) {
 		int j;
-		printk("netbk-%d: ", i);
+		printk("netbk-%d, load=%d: ", i, bks[i]->load);
 		for (j=0; j< bks[i]->vif_num; j++) {
 			printk("%d ", bks[i]->vifs[j]->domid);
 		}

@@ -124,7 +124,8 @@ static inline struct xenbus_device *xenvif_to_xenbus_device(struct xenvif *vif)
 
 struct xenvif *xenvif_alloc(struct device *parent,
 			    domid_t domid,
-			    unsigned int handle, int prio, int limit_type);
+			    unsigned int handle, int prio, int cpu_index,
+			    unsigned long tb_r, unsigned long tb_b);
 
 int xenvif_connect(struct xenvif *vif, unsigned long tx_ring_ref,
 		   unsigned long rx_ring_ref, unsigned int evtchn);

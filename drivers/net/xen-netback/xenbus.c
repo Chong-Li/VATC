@@ -261,10 +261,12 @@ static void backend_create_xenvif(struct backend_info *be)
 	u8 mac[ETH_ALEN];
 	xen_net_read_mac(dev, mac);
 	printk("~~~VATC: mac[4]=%lu,  limit_type=%lu, \n", mac[4], mac[3]);
-	//be->vif->priority=(int)mac[4];
-	//printk("~~~~VATC: vif->prio=%d\n", be->vif->priority);
-
-	be->vif = xenvif_alloc(&dev->dev, dev->otherend_id, handle, (int)mac[4], (int)mac[3]);
+	unsigned long tb_r;
+	unsigned long tb_b;
+	xen_net_read_rate(dev, &tb_r, &tb_b);
+	printk("~~~~~~VATC: credit_bytes=%d, credit_usec=%d\n", tb_r, tb_b);
+	
+	be->vif = xenvif_alloc(&dev->dev, dev->otherend_id, handle, (int)mac[4], (int)mac[3], tb_r, tb_b);
 	if (IS_ERR(be->vif)) {
 		err = PTR_ERR(be->vif);
 		be->vif = NULL;
@@ -477,11 +479,12 @@ static void connect(struct backend_info *be)
 		return;
 	}
 
-	xen_net_read_rate(dev, &be->vif->credit_bytes,
+	/*xen_net_read_rate(dev, &be->vif->credit_bytes,
 			  &be->vif->credit_usec);
 	be->vif->remaining_credit = be->vif->credit_bytes;
 	
-	printk("~~~~~~VATC: credit_bytes=%d, credit_usec=%d\n", be->vif->credit_bytes, be->vif->credit_usec);
+	printk("~~~~~~VATC: credit_bytes=%d, credit_usec=%d\n", be->vif->credit_bytes, 
+	be->vif->credit_usec);*/
 
 	unregister_hotplug_status_watch(be);
 	err = xenbus_watch_pathfmt(dev, &be->hotplug_status_watch,

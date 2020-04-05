@@ -252,7 +252,8 @@ static const struct net_device_ops xenvif_netdev_ops = {
 };
 
 struct xenvif *xenvif_alloc(struct device *parent, domid_t domid,
-			    unsigned int handle, int prio, int limit_type)
+			    unsigned int handle, int prio, int cpu_index,
+			    unsigned long tb_r, unsigned long tb_b)
 {
 	int err;
 	struct net_device *dev;
@@ -274,9 +275,9 @@ struct xenvif *xenvif_alloc(struct device *parent, domid_t domid,
 	/*VATC*/
 	vif->priority = prio;
 	vif->limit_type = 2;
-	vif->cpu_index = limit_type;
+	vif->cpu_index = cpu_index;
 	spin_lock_init(&vif->schedule_list_lock);
-	printk("dom_%d, prio=%d, cpu_index=%d\n", domid, prio, limit_type);
+	printk("dom_%d, prio=%d, cpu_index=%d\n", domid, prio, cpu_index);
 	
 	vif->netbk  = NULL;
 	vif->can_sg = 1;
@@ -329,6 +330,9 @@ struct xenvif *xenvif_alloc(struct device *parent, domid_t domid,
 	vif->rate = 30; //bytes per milli-second
 	vif->burst  = 3000;
 	vif->tokens = 3000;
+
+	vif->credit_bytes = tb_r;
+	vif->credit_usec = tb_b;
 		
 	vif->last_fill = jiffies;
 	init_timer(&vif->token_timeout);
