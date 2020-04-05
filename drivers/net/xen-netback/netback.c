@@ -104,7 +104,7 @@ union page_ext {
 };
 
 /*VATC*/
-#define MAX_VMS 256;
+#define MAX_VMS 256
 
 struct xen_netbk {
 	/*VATC*/
