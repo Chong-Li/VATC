@@ -260,6 +260,55 @@ void xen_netbk_remove_xenvif(struct xenvif *vif)
 	struct xen_netbk *netbk = vif->netbk;
 	vif->netbk = NULL;
 	atomic_dec(&netbk->netfront_count);
+
+	/*VATC: Rebalance with Least-Load-First (worst-fit binpacking)*/
+	int i;
+	for (i=0; i< num_vifs; i++) {
+		if (vif == all_vifs[i]) {
+			int j;
+			for (j=i; j<num_vifs-1; j++) {
+				all_vifs[j]=all_vifs[j+1];
+			}
+			break;
+		}
+	}
+	num_vifs--;
+
+	struct xen_netbk *bks[xen_netbk_group_nr];
+	for (i=0; i< xen_netbk_group_nr; i++) {
+		bks[i]=&xen_netbk[i*num_prio + vif->priority];
+		bks[i]->vif_num=0;
+		bks[i]->load=0;
+	}
+	for (i=0; i< num_vifs; i++) {
+		int index;
+		int min_index = 0;
+		struct xenvif *cvif = all_vifs[i];
+		for (index=0; index < xen_netbk_group_nr; index++) {
+			if (bks[index]->load < bks[min_index]->load) {
+				min_index = index;
+			}
+		}
+		netbk = bks[min_index];
+		netbk->load +=cvif->credit_bytes;
+		netbk->vifs[netbk->vif_num]=cvif;
+		netbk->vif_num++;
+		if (cvif->netbk != netbk) {
+			unsigned long flags;
+			spin_lock_irqsave(&cvif->schedule_list_lock, flags);
+			cvif->new_netbk=netbk;
+			spin_unlock_irqrestore(&cvif->schedule_list_lock, flags);
+		}
+	}
+	printk("~~~~!!!!VATC: remove dom %d\n", vif->domid);
+	for (i=0; i< xen_netbk_group_nr; i++) {
+		int j;
+		printk("netbk-%d, load=%d: ", i, bks[i]->load);
+		for (j=0; j< bks[i]->vif_num; j++) {
+			printk("%d ", bks[i]->vifs[j]->domid);
+		}
+		printk(" \n");
+	}
 }
 
 static void xen_netbk_idx_release(struct xen_netbk *netbk, u16 pending_idx,
