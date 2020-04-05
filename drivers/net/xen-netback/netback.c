@@ -103,9 +103,15 @@ union page_ext {
 	void *mapping;
 };
 
+/*VATC*/
+#define MAX_VMS 256;
+
 struct xen_netbk {
 	/*VATC*/
 	int priority; //add priority attr to netback device
+	struct xenvif *vifs[MAX_VMS];
+	int vif_num;
+	int load;
 	wait_queue_head_t wq;
 	struct task_struct *task;
 
@@ -145,7 +151,11 @@ struct xen_netbk {
 
 static struct xen_netbk *xen_netbk;
 static int xen_netbk_group_nr;
+
+/*VATC*/
 static int num_prio;
+static struct xenvif *all_vifs[MAX_VMS];
+static int num_vifs;
 
 /*
  * If head != INVALID_PENDING_RING_IDX, it means this tx request is head of
@@ -181,11 +191,68 @@ void xen_netbk_add_xenvif(struct xenvif *vif)
 	} else{
 		netbk=&xen_netbk[vif->priority];
 	}*/
-	netbk = &xen_netbk[vif->cpu_index*num_prio + vif->priority];
-	printk("~~~~~~VATC: dom_%d add to cpu=%d, prio=%d, count=%d\n", vif->domid, vif->cpu_index, vif->priority, vif->cpu_index*num_prio + vif->priority);
 
-	vif->netbk = netbk;
-	atomic_inc(&netbk->netfront_count);
+	/*Based on users' CPU_index*/
+	//netbk = &xen_netbk[vif->cpu_index*num_prio + vif->priority];
+	//printk("~~~~~~VATC: dom_%d add to cpu=%d, prio=%d, count=%d\n", vif->domid, vif->cpu_index, vif->priority, vif->cpu_index*num_prio + vif->priority);
+	//vif->netbk = netbk;
+
+
+	/*Rebalance with Least-Load-First (worst-fit binpacking)*/
+	for (i=0; i< num_vifs; i++) {
+		if (vif->credit_bytes > all_vifs[i]->credit_bytes) {
+			int j;
+			for (j=num_vifs; j>i; j--) {
+				all_vifs[j]=all_vifs[j-1];
+			}
+			all_vifs[i]=vif;
+			break;
+		}
+	}
+	if (i==num_vifs) {
+		all_vifs[i]=vif;
+	}
+	num_vifs++;
+
+	struct xen_netbk *bks[xen_netbk_group_nr];
+	for (i=0; i< xen_netbk_group_nr; i++) {
+		bks[i]=&xen_netbk[i*num_prio + vif->priority];
+		bks[i]->vif_num=0;
+		bks[i]->load=0;
+	}
+	for (i=0; i< num_vifs; i++) {
+		int index;
+		int min_index = 0;
+		struct xenvif *cvif = all_vifs[i];
+		for (index=0; index < xen_netbk_group_nr; index++) {
+			if (bks[index]->load < bks[min_index]->load) {
+				min_index = index;
+			}
+		}
+		netbk = bks[min_index];
+		netbk->load +=cvif->credit_bytes;
+		netbk->vifs[netbk->vif_num]=cvif;
+		netbk->vif_num++;
+		if (cvif == vif) {
+			cvif->netbk=netbk;
+		} else if (cvif->netbk != netbk) {
+			unsigned long flags;
+			spin_lock_irqsave(&cvif->schedule_list_lock, flags);
+			cvif->new_netbk=netbk;
+			spin_unlock_irqrestore(&cvif->schedule_list_lock, flags);
+		}
+	}
+	printk("~~~~!!!!VATC: add dom %d\n", vif->domid);
+	for (i=0; i< xen_netbk_group_nr; i++) {
+		int j;
+		printk("netbk-%d: ", i);
+		for (j=0; j< bks[i]->vif_num; j++) {
+			printk("%d ", bks[i]->vifs[j]->domid);
+		}
+		printk(" \n");
+	}
+	
+	atomic_inc(&vif->netbk->netfront_count);
 }
 
 void xen_netbk_remove_xenvif(struct xenvif *vif)
@@ -893,7 +960,16 @@ out:
 void xen_netbk_schedule_xenvif(struct xenvif *vif)
 {
 	unsigned long flags;
+
+	/*VATC*/
+	if (vif->new_netbk != NULL) {
+		spin_lock_irqsave(&vif->schedule_list_lock, flags);
+		vif->netbk = vif->new_netbk;
+		vif->new_netbk = NULL;
+		spin_unlock_irqrestore(&vif->schedule_list_lock, flags);
+	}
 	struct xen_netbk *netbk = vif->netbk;
+
 
 	if (__on_net_schedule_list(vif))
 		goto kick;
@@ -2044,6 +2120,7 @@ static int __init netback_init(void)
 	/*VATC*/
 	//xen_netbk_group_nr = 6;
 	num_prio =2;
+	num_vifs =0;
 	int cur_prio;
 
 	//xen_netbk = vzalloc(sizeof(struct xen_netbk) * xen_netbk_group_nr);

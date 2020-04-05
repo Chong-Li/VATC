@@ -275,6 +275,7 @@ struct xenvif *xenvif_alloc(struct device *parent, domid_t domid,
 	vif->priority = prio;
 	vif->limit_type = 2;
 	vif->cpu_index = limit_type;
+	spin_lock_init(&vif->schedule_list_lock);
 	printk("dom_%d, prio=%d, cpu_index=%d\n", domid, prio, limit_type);
 	
 	vif->netbk  = NULL;

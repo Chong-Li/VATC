@@ -61,6 +61,8 @@ struct xenvif {
 	struct timer_list token_timeout;
 	int limit_type;
 	int cpu_index;
+	spinlock_t schedule_list_lock;
+	struct xen_netbk *new_netbk;
 
 
 	/* Reference to netback processing backend. */
