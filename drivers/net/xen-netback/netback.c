@@ -202,7 +202,8 @@ void xen_netbk_add_xenvif(struct xenvif *vif)
 
 
 	/*Rebalance with Least-Load-First (worst-fit binpacking)*/
-	struct timespec start = current_kernel_time();
+	struct timespec start;
+	getrawmonotonic(&start);
 	for (i=0; i< num_vifs; i++) {
 		if (vif->credit_bytes > all_vifs[i]->credit_bytes) {
 			int j;
@@ -246,7 +247,8 @@ void xen_netbk_add_xenvif(struct xenvif *vif)
 			spin_unlock_irqrestore(&cvif->schedule_list_lock, flags);
 		}
 	}
-	struct timespec end = current_kernel_time();
+	struct timespec end;
+	getrawmonotonic(&end);
 	printk("~~~~!!!!VATC: add dom %d %d\n", vif->domid, end.tv_nsec-start.tv_nsec);
 	for (i=0; i< xen_netbk_group_nr; i++) {
 		int j;
@@ -267,7 +269,8 @@ void xen_netbk_remove_xenvif(struct xenvif *vif)
 	atomic_dec(&netbk->netfront_count);
 
 	/*VATC: Rebalance with Least-Load-First (worst-fit binpacking)*/
-	struct timespec start = current_kernel_time();
+	struct timespec start;
+	getrawmonotonic(&start);
 	int i;
 	for (i=0; i< num_vifs; i++) {
 		if (vif == all_vifs[i]) {
@@ -306,7 +309,8 @@ void xen_netbk_remove_xenvif(struct xenvif *vif)
 			spin_unlock_irqrestore(&cvif->schedule_list_lock, flags);
 		}
 	}
-	struct timespec end = current_kernel_time();
+	struct timespec end;
+	getrawmonotonic(&end);
 	printk("~~~~!!!!VATC: remove dom %d %d\n", vif->domid, end.tv_nsec-start.tv_nsec);
 	for (i=0; i< xen_netbk_group_nr; i++) {
 		int j;
