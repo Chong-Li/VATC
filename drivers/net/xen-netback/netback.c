@@ -47,6 +47,9 @@
 #include <asm/xen/hypercall.h>
 #include <asm/xen/page.h>
 
+/*VATC*/
+#include <linux/timekeeping.h>
+
 /*
  * This is the maximum slots a skb can have. If a guest sends a skb
  * which exceeds this limit it is considered malicious.
@@ -199,6 +202,7 @@ void xen_netbk_add_xenvif(struct xenvif *vif)
 
 
 	/*Rebalance with Least-Load-First (worst-fit binpacking)*/
+	u64 start = ktime_get_ns();
 	for (i=0; i< num_vifs; i++) {
 		if (vif->credit_bytes > all_vifs[i]->credit_bytes) {
 			int j;
@@ -242,7 +246,8 @@ void xen_netbk_add_xenvif(struct xenvif *vif)
 			spin_unlock_irqrestore(&cvif->schedule_list_lock, flags);
 		}
 	}
-	printk("~~~~!!!!VATC: add dom %d\n", vif->domid);
+	u64 end = ktime_get_ns();
+	printk("~~~~!!!!VATC: add dom %d %d\n", vif->domid, end-start);
 	for (i=0; i< xen_netbk_group_nr; i++) {
 		int j;
 		printk("netbk-%d, load=%d: ", i, bks[i]->load);
@@ -262,6 +267,7 @@ void xen_netbk_remove_xenvif(struct xenvif *vif)
 	atomic_dec(&netbk->netfront_count);
 
 	/*VATC: Rebalance with Least-Load-First (worst-fit binpacking)*/
+	u64 start = ktime_get_ns();
 	int i;
 	for (i=0; i< num_vifs; i++) {
 		if (vif == all_vifs[i]) {
@@ -300,7 +306,8 @@ void xen_netbk_remove_xenvif(struct xenvif *vif)
 			spin_unlock_irqrestore(&cvif->schedule_list_lock, flags);
 		}
 	}
-	printk("~~~~!!!!VATC: remove dom %d\n", vif->domid);
+	u64 end = ktime_get_ns();
+	printk("~~~~!!!!VATC: remove dom %d %d\n", vif->domid, end-start);
 	for (i=0; i< xen_netbk_group_nr; i++) {
 		int j;
 		printk("netbk-%d, load=%d: ", i, bks[i]->load);
