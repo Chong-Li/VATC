@@ -333,6 +333,7 @@ struct xenvif *xenvif_alloc(struct device *parent, domid_t domid,
 
 	vif->credit_bytes = tb_r;
 	vif->credit_usec = tb_b;
+	vif->remaining_credit = tb_r;
 		
 	vif->last_fill = jiffies;
 	init_timer(&vif->token_timeout);
