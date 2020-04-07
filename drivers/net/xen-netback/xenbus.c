@@ -260,7 +260,7 @@ static void backend_create_xenvif(struct backend_info *be)
 	/*VATC*/
 	u8 mac[ETH_ALEN];
 	xen_net_read_mac(dev, mac);
-	printk("~~~VATC: mac[4]=%lu,  limit_type=%lu, \n", mac[4], mac[3]);
+	printk("~~~VATC: prio =%lu,  limit_type=%lu, \n", mac[4], mac[3]);
 	unsigned long tb_r;
 	unsigned long tb_b;
 	xen_net_read_rate(dev, &tb_r, &tb_b);

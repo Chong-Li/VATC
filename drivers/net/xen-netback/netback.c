@@ -1726,7 +1726,7 @@ static unsigned xen_netbk_tx_build_gops(struct xen_netbk *netbk)
 		rmb(); /* Ensure that we see the request before we copy it. */
 		memcpy(&txreq, RING_GET_REQUEST(&vif->tx, idx), sizeof(txreq));
 		/*VATC*/
-		if (vif->limit_type == 0) {
+		if (vif->limit_type == 3) {
 			/* Credit-based scheduling. */
 			if (txreq.size > vif->remaining_credit &&
 		    		tx_credit_exceeded(vif, txreq.size)) {
@@ -1734,7 +1734,7 @@ static unsigned xen_netbk_tx_build_gops(struct xen_netbk *netbk)
 				continue;
 			}
 			vif->remaining_credit -= txreq.size;
-		} else if (vif->limit_type == 1) {
+		} else if (vif->limit_type == 2) {
 			/*VATC token bucket*/
 			if (vif->credit_usec == 0) {
 				goto notb;
@@ -1747,7 +1747,7 @@ static unsigned xen_netbk_tx_build_gops(struct xen_netbk *netbk)
 			vif->remaining_credit -= txreq.size;
 		} else {
 			/*VATC pkt-based token bucket*/
-			if (vif->credit_usec == 0) {
+			if (vif->limit_type == 0 || vif->credit_usec == 0) {
 				goto notb;
 			}
 			if (tx_pkt_exceeded(vif, 1)) {

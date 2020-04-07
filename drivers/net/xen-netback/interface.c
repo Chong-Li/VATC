@@ -274,7 +274,7 @@ struct xenvif *xenvif_alloc(struct device *parent, domid_t domid,
 	vif->handle = handle;
 	/*VATC*/
 	vif->priority = prio;
-	vif->limit_type = 2;
+	vif->limit_type = cpu_index;
 	vif->cpu_index = cpu_index;
 	spin_lock_init(&vif->schedule_list_lock);
 	printk("dom_%d, prio=%d, cpu_index=%d\n", domid, prio, cpu_index);
