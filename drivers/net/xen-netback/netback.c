@@ -49,6 +49,7 @@
 
 /*VATC*/
 #include <linux/time.h>
+#include <linux/smp.h>
 
 /*
  * This is the maximum slots a skb can have. If a guest sends a skb
@@ -188,7 +189,7 @@ void xen_netbk_add_xenvif(struct xenvif *vif)
 
 	netbk = &xen_netbk[min_group];
 
-	/*VATC*/
+	/*VATC-basic version*/
 	/*if(vif->priority >5){
 		netbk=&xen_netbk[5];
 	} else{
@@ -196,9 +197,10 @@ void xen_netbk_add_xenvif(struct xenvif *vif)
 	}*/
 
 	/*Based on users' CPU_index*/
-	//netbk = &xen_netbk[vif->cpu_index*num_prio + vif->priority];
-	//printk("~~~~~~VATC: dom_%d add to cpu=%d, prio=%d, count=%d\n", vif->domid, vif->cpu_index, vif->priority, vif->cpu_index*num_prio + vif->priority);
-	//vif->netbk = netbk;
+	netbk = &xen_netbk[vif->cpu_index*num_prio + vif->priority];
+	printk("~~~~~~VATC: dom_%d add to cpu=%d, prio=%d, count=%d\n", vif->domid, vif->cpu_index, vif->priority, vif->cpu_index*num_prio + vif->priority);
+	vif->netbk = netbk;
+	return;
 
 
 	/*Rebalance with Least-Load-First (worst-fit binpacking)*/
@@ -258,7 +260,7 @@ void xen_netbk_add_xenvif(struct xenvif *vif)
 		}
 		printk(" \n");
 	}
-	
+
 	atomic_inc(&vif->netbk->netfront_count);
 }
 
@@ -268,6 +270,7 @@ void xen_netbk_remove_xenvif(struct xenvif *vif)
 	vif->netbk = NULL;
 	atomic_dec(&netbk->netfront_count);
 
+	return;
 	/*VATC: Rebalance with Least-Load-First (worst-fit binpacking)*/
 	struct timespec start;
 	getrawmonotonic(&start);
@@ -1021,13 +1024,22 @@ void xen_netbk_schedule_xenvif(struct xenvif *vif)
 {
 	unsigned long flags;
 
-	/*VATC*/
-	if (vif->new_netbk != NULL) {
+	/*VATC: enforce LLF rebalancing*/
+	/*if (vif->new_netbk != NULL) {
 		spin_lock_irqsave(&vif->schedule_list_lock, flags);
 		vif->netbk = vif->new_netbk;
 		vif->new_netbk = NULL;
 		spin_unlock_irqrestore(&vif->schedule_list_lock, flags);
+	}*/
+	
+	/*VATC: use irqbalanced*/
+	int cpu = smp_processor_id();
+	if (vif->netbk != &xen_netbk[cpu*num_prio + vif->priority]) {
+		spin_lock_irqsave(&vif->schedule_list_lock, flags);
+		vif->netbk = &xen_netbk[cpu*num_prio + vif->priority];
+		spin_unlock_irqrestore(&vif->schedule_list_lock, flags);
 	}
+
 	struct xen_netbk *netbk = vif->netbk;
 
 
@@ -1614,7 +1626,7 @@ static bool tx_token_exceeded(struct xenvif *vif, unsigned size)
 {
 	if (timer_pending(&vif->token_timeout))
 		return true;
-	
+
 	unsigned long now = jiffies;
 	if (time_after_eq(now, vif->last_fill)) {
 		unsigned int elapse = jiffies_to_msecs(now-vif->last_fill);
@@ -1628,7 +1640,7 @@ static bool tx_token_exceeded(struct xenvif *vif, unsigned size)
 			vif->last_fill = now;
 		}
 	}
-		
+
 	if (vif->remaining_credit < size) {
 		unsigned long deficit = size - vif->remaining_credit;
 		vif->token_timeout.data     =
@@ -1647,7 +1659,7 @@ static bool tx_pkt_exceeded(struct xenvif *vif, unsigned size)
 {
 	if (timer_pending(&vif->token_timeout))
 		return true;
-	
+
 	unsigned long now = jiffies;
 	if (time_after_eq(now, vif->last_fill)) {
 		unsigned int elapse = jiffies_to_msecs(now-vif->last_fill);
@@ -1661,7 +1673,7 @@ static bool tx_pkt_exceeded(struct xenvif *vif, unsigned size)
 			vif->last_fill = now;
 		}
 	}
-		
+
 	if (vif->remaining_credit < size) {
 		unsigned long deficit = size - vif->remaining_credit;
 		vif->token_timeout.data     =
@@ -2093,7 +2105,7 @@ static int xen_netbk_kthread(void *data)
 	printk("!!!!!!!~kthread_priority=%d !!!!!!!!\n", kthread_priority);
 	struct sched_param net_recv_param={.sched_priority=kthread_priority};
 	sched_setscheduler(current,SCHED_FIFO,&net_recv_param);
-	
+
 	while (!kthread_should_stop()) {
 		wait_event_interruptible(netbk->wq,
 				rx_work_todo(netbk) ||
@@ -2176,7 +2188,7 @@ static int __init netback_init(void)
 	}
 
 	xen_netbk_group_nr = num_online_cpus();
-	
+
 	/*VATC*/
 	//xen_netbk_group_nr = 6;
 	num_prio =2;
