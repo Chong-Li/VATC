@@ -189,24 +189,25 @@ void xen_netbk_add_xenvif(struct xenvif *vif)
 
 	netbk = &xen_netbk[min_group];
 
-	/*VATC-basic version*/
-	/*if(vif->priority >5){
-		netbk=&xen_netbk[5];
-	} else{
-		netbk=&xen_netbk[vif->priority];
-	}*/
-
-	/*Based on users' CPU_index*/
-	netbk = &xen_netbk[vif->cpu_index*num_prio + vif->priority];
+	//Based on users' CPU_index configuration
+	/*netbk = &xen_netbk[vif->cpu_index*num_prio + vif->priority];
 	printk("~~~~~~VATC: dom_%d add to cpu=%d, prio=%d, count=%d\n", vif->domid, vif->cpu_index, vif->priority, vif->cpu_index*num_prio + vif->priority);
 	vif->netbk = netbk;
-	return;
+	atomic_inc(&vif->netbk->netfront_count);
+	return;*/
 
+	//VATC: low-prio vifs are assigned based on irqbalanced
+	if (vif->priority > 0) {
+		int cpu = smp_processor_id();
+		vif->netbk = &xen_netbk[cpu*num_prio + vif->priority];
+		atomic_inc(&vif->netbk->netfront_count);
+		return;
+	}
 
-	/*Rebalance with Least-Load-First (worst-fit binpacking)*/
+	//VATC: rebalance with Least-Load-First (worst-fit binpacking)
 	struct timespec start;
 	getrawmonotonic(&start);
-	for (i=0; i< num_vifs; i++) {
+	for (i = 0; i < num_vifs; i++) {
 		if (vif->credit_bytes > all_vifs[i]->credit_bytes) {
 			int j;
 			for (j=num_vifs; j>i; j--) {
@@ -266,12 +267,15 @@ void xen_netbk_add_xenvif(struct xenvif *vif)
 
 void xen_netbk_remove_xenvif(struct xenvif *vif)
 {
-	struct xen_netbk *netbk = vif->netbk;
-	vif->netbk = NULL;
-	atomic_dec(&netbk->netfront_count);
+	//VATC: low-prio vifs just leave
+	if (vif-> priority > 0) {
+		struct xen_netbk *netbk = vif->netbk;
+		vif->netbk = NULL;
+		atomic_dec(&netbk->netfront_count);
+		return;
+	}
 
-	return;
-	/*VATC: Rebalance with Least-Load-First (worst-fit binpacking)*/
+	//VATC: Rebalance with Least-Load-First (worst-fit binpacking)
 	struct timespec start;
 	getrawmonotonic(&start);
 	int i;
@@ -1024,20 +1028,22 @@ void xen_netbk_schedule_xenvif(struct xenvif *vif)
 {
 	unsigned long flags;
 
-	/*VATC: enforce LLF rebalancing*/
-	/*if (vif->new_netbk != NULL) {
-		spin_lock_irqsave(&vif->schedule_list_lock, flags);
-		vif->netbk = vif->new_netbk;
-		vif->new_netbk = NULL;
-		spin_unlock_irqrestore(&vif->schedule_list_lock, flags);
-	}*/
-	
-	/*VATC: use irqbalanced*/
-	int cpu = smp_processor_id();
-	if (vif->netbk != &xen_netbk[cpu*num_prio + vif->priority]) {
-		spin_lock_irqsave(&vif->schedule_list_lock, flags);
-		vif->netbk = &xen_netbk[cpu*num_prio + vif->priority];
-		spin_unlock_irqrestore(&vif->schedule_list_lock, flags);
+	if (vif->priority == 0) {
+		//VATC: enforce LLF rebalancing for high-prio vifs
+		if (vif->new_netbk != NULL) {
+			spin_lock_irqsave(&vif->schedule_list_lock, flags);
+			vif->netbk = vif->new_netbk;
+			vif->new_netbk = NULL;
+			spin_unlock_irqrestore(&vif->schedule_list_lock, flags);
+		}
+	} else {
+		//VATC: based on irqbalanced for low-prio vifs
+		int cpu = smp_processor_id();
+		if (vif->netbk != &xen_netbk[cpu*num_prio + vif->priority]) {
+			spin_lock_irqsave(&vif->schedule_list_lock, flags);
+			vif->netbk = &xen_netbk[cpu*num_prio + vif->priority];
+			spin_unlock_irqrestore(&vif->schedule_list_lock, flags);
+		}
 	}
 
 	struct xen_netbk *netbk = vif->netbk;
@@ -1110,7 +1116,6 @@ static void tx_credit_callback(unsigned long data)
 static void tx_token_callback(unsigned long data)
 {
 	struct xenvif *vif = (struct xenvif *)data;
-	//printk("tx_token_callback~~~~\n");
 	xen_netbk_check_rx_xenvif(vif);
 }
 
@@ -1747,13 +1752,12 @@ static unsigned xen_netbk_tx_build_gops(struct xen_netbk *netbk)
 			}
 			vif->remaining_credit -= txreq.size;
 		} else if (vif->limit_type == 2) {
-			/*VATC token bucket*/
+			/*Byte-based token bucket*/
 			if (vif->credit_usec == 0) {
 				goto notb;
 			}
 			if (tx_token_exceeded(vif, txreq.size)) {
 				xenvif_put(vif);
-				//printk("lack tokens~~~~\n");
 				continue;
 			}
 			vif->remaining_credit -= txreq.size;

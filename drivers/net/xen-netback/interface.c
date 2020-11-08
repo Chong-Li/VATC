@@ -86,7 +86,6 @@ static int xenvif_start_xmit(struct sk_buff *skb, struct net_device *dev)
 
 	/* Drop the packet if the target domain has no receive buffers. */
 	if (!xenvif_rx_schedulable(vif)) {
-		//printk("~~~~~VATC: drop pkt at vif-%d\n", vif->domid);
 		goto drop;
 	}
 
@@ -96,7 +95,6 @@ static int xenvif_start_xmit(struct sk_buff *skb, struct net_device *dev)
 
 	if (vif->can_queue && xen_netbk_must_stop_queue(vif)) {
 		netif_stop_queue(dev);
-		//printk("~~~~~VATC: vif-%d stops the queue\n", vif->domid);
 	}
 
 	xen_netbk_queue_tx_skb(vif, skb);
@@ -118,8 +116,6 @@ void xenvif_notify_tx_completion(struct xenvif *vif)
 {
 	if (netif_queue_stopped(vif->dev) && xenvif_rx_schedulable(vif)) {
 		netif_wake_queue(vif->dev);
-		/*VATC*/
-		//kick_rx_backup(vif);
 		xen_netbk_schedule_xenvif(vif);
 	}
 }
@@ -252,7 +248,7 @@ static const struct net_device_ops xenvif_netdev_ops = {
 };
 
 struct xenvif *xenvif_alloc(struct device *parent, domid_t domid,
-			    unsigned int handle, int prio, int cpu_index,
+			    unsigned int handle, int prio, int var_index,
 			    unsigned long tb_r, unsigned long tb_b)
 {
 	int err;
@@ -274,11 +270,11 @@ struct xenvif *xenvif_alloc(struct device *parent, domid_t domid,
 	vif->handle = handle;
 	/*VATC*/
 	vif->priority = prio;
-	vif->limit_type = cpu_index;
-	vif->cpu_index = cpu_index;
+	vif->limit_type = var_index;
+	vif->cpu_index = var_index;
 	spin_lock_init(&vif->schedule_list_lock);
-	printk("dom_%d, prio=%d, cpu_index=%d\n", domid, prio, cpu_index);
-	
+	printk("dom_%d, prio=%d, cpu_index=%d\n", domid, prio, var_index);
+
 	vif->netbk  = NULL;
 	vif->can_sg = 1;
 	vif->csum = 1;
@@ -326,7 +322,7 @@ struct xenvif *xenvif_alloc(struct device *parent, domid_t domid,
 	sd=&__get_cpu_var(softnet_data);
 	local_irq_save(flags);
 	sd->dev_queue[sd->dom_index -1]=dev;
-	local_irq_restore(flags);	
+	local_irq_restore(flags);
 	vif->rate = 30; //bytes per milli-second
 	vif->burst  = 3000;
 	vif->tokens = 3000;
@@ -334,11 +330,11 @@ struct xenvif *xenvif_alloc(struct device *parent, domid_t domid,
 	vif->credit_bytes = tb_r;
 	vif->credit_usec = tb_b;
 	vif->remaining_credit = tb_r;
-		
+
 	vif->last_fill = jiffies;
 	init_timer(&vif->token_timeout);
 	printk("interface.c: %s, dom: %d, priority: %d\n", __func__, dev->domid, dev->priority);
-	
+
 	netdev_dbg(dev, "Successfully created xenvif\n");
 
 	__module_get(THIS_MODULE);
